@@ -36,6 +36,13 @@ class MihonNetworkHelperTest {
     }
 
     @Test
+    fun hostRuntimeProvidesOkHttpBrotliClass() {
+        val brotliClass = Class.forName("okhttp3.brotli.BrotliInterceptor")
+
+        assertEquals("okhttp3.brotli.BrotliInterceptor", brotliClass.name)
+    }
+
+    @Test
     fun defaultClientDropsKeiyoushiForbiddenNetworkInterceptors() {
         val baseClient = OkHttpClient.Builder()
             .addNetworkInterceptor(IgnoreGzipInterceptor())
