@@ -3,12 +3,14 @@ package io.github.landwarderer.futon.mihon.compat
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import okhttp3.CookieJar
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -31,6 +33,25 @@ class MihonNetworkHelperTest {
         assertEquals("UserAgentInterceptor", names[1])
         assertEquals("CloudflareInterceptor", names[2])
         assertTrue(names.containsAll(REQUIRED_INTERCEPTORS))
+    }
+
+    @Test
+    fun defaultClientDropsKeiyoushiForbiddenNetworkInterceptors() {
+        val baseClient = OkHttpClient.Builder()
+            .addNetworkInterceptor(IgnoreGzipInterceptor())
+            .addNetworkInterceptor(BrotliInterceptor())
+            .addNetworkInterceptor(PassthroughNetworkInterceptor())
+            .build()
+        val helper = MihonNetworkHelper(
+            baseClient = baseClient,
+            cookieJar = CookieJar.NO_COOKIES,
+        )
+
+        val names = helper.client.networkInterceptors.map { it.javaClass.simpleName }
+
+        assertFalse(names.contains("IgnoreGzipInterceptor"))
+        assertFalse(names.contains("BrotliInterceptor"))
+        assertTrue(names.contains("PassthroughNetworkInterceptor"))
     }
 
     @Test
@@ -98,6 +119,14 @@ class MihonNetworkHelperTest {
         }
         return capturedRequest.get()
     }
+
+    private open class PassthroughNetworkInterceptor : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response = chain.proceed(chain.request())
+    }
+
+    private class IgnoreGzipInterceptor : PassthroughNetworkInterceptor()
+
+    private class BrotliInterceptor : PassthroughNetworkInterceptor()
 
     companion object {
         private const val TEST_USER_AGENT = "Futon-Mihon-Test-UA"
