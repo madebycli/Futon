@@ -2,6 +2,7 @@
 
 package eu.kanade.tachiyomi.source.model
 
+import kotlinx.serialization.json.JsonObject
 import java.io.Serializable
 
 /**
@@ -30,6 +31,12 @@ interface SManga : Serializable {
 
     var initialized: Boolean
 
+    /**
+     * Extra source/app-specific metadata added in tachiyomix extension-lib 1.6.
+     * Keep this ABI in the host because current Keiyoushi sources invoke getMemo/setMemo.
+     */
+    var memo: JsonObject
+
     fun getGenres(): List<String>? {
         if (genre.isNullOrBlank()) return null
         return genre?.split(", ")?.map { it.trim() }?.filterNot { it.isBlank() }?.distinct()
@@ -46,6 +53,7 @@ interface SManga : Serializable {
         it.thumbnail_url = thumbnail_url
         it.update_strategy = update_strategy
         it.initialized = initialized
+        it.memo = memo
     }
 
     companion object {
@@ -87,4 +95,6 @@ class SMangaImpl : SManga {
     override var update_strategy: UpdateStrategy = UpdateStrategy.ALWAYS_UPDATE
 
     override var initialized: Boolean = false
+
+    override var memo: JsonObject = JsonObject(emptyMap())
 }
