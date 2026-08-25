@@ -1,6 +1,6 @@
 {
-  "run_id": "32899490472",
-  "source_sha": "46687e31a70f05e20255aeb32ed0baf9acfda02f",
-  "verify": "failure",
-  "signed_release": "skipped"
+  "run_id": "32900110191",
+  "source_sha": "758cdb5dd2e8a4c8f4f3f0b91f584fd61ad5b958",
+  "verify": "success",
+  "signed_release": "failure"
 }
