@@ -1,6 +1,6 @@
 # Mihon / Keiyoushi Fix — AI Handoff Context
 
-Last verified: 2026-08-25
+Last verified: 2026-08-25 18:24 CEST
 
 ## Mission
 
@@ -9,6 +9,8 @@ Continue the in-progress Mihon/Tachiyomi Keiyoushi extension compatibility fix i
 **Work only on:** `fix/mihon-uncaught-exception-interceptor`
 
 **Base branch:** `devel`
+
+**Open PR:** #1, draft — `Fix Keiyoushi/Mihon default network interceptor compatibility`
 
 Do not merge into `devel` until the test APK has been installed and real Keiyoushi extensions (especially Comix) have been verified by the user.
 
@@ -32,7 +34,7 @@ Do not copy it blindly. In particular, placing `UncaughtExceptionInterceptor` on
 
 ## Fix already implemented on this branch
 
-The branch currently adds/changes these relevant files:
+Relevant files changed by the fix include:
 
 - `app/src/main/kotlin/eu/kanade/tachiyomi/network/interceptor/UncaughtExceptionInterceptor.kt`
 - `app/src/main/kotlin/eu/kanade/tachiyomi/network/interceptor/UserAgentInterceptor.kt`
@@ -50,7 +52,7 @@ The branch currently adds/changes these relevant files:
 
 The exact class names matter because Keiyoushi checks them. Futon's existing class is spelled `CloudFlareInterceptor`, so the compatibility class is needed while preserving the existing Cloudflare behavior rather than merely faking a class name.
 
-The Mihon client also excludes Futon's `GZipInterceptor`, because that interceptor had already been documented as problematic for Mihon extension requests, and avoids duplicate compatibility interceptors copied from the base client.
+The Mihon client excludes Futon's `GZipInterceptor`, because that interceptor is incompatible with some Mihon extension requests, and avoids duplicate compatibility interceptors copied from the base client.
 
 ## Regression tests
 
@@ -72,38 +74,60 @@ The tests verify at least:
 - a source-specific User-Agent is preserved;
 - unchecked interceptor failures are wrapped as `IOException`.
 
-### Last verified result
+### Verified test history
 
-The focused Mihon regression tests **passed** in GitHub Actions run `32857638181` (`BUILD SUCCESSFUL`).
+GitHub Actions run `32857638181` completed the focused `MihonNetworkHelperTest` suite successfully (`BUILD SUCCESSFUL`). The normal PR debug build also succeeded for the fix branch at that stage.
 
-The normal PR debug build also succeeded for the fix branch.
+The latest recorded Mihon test workflow run is `32870847041`. It was **cancelled while the focused regression test step was running**, so it is not evidence of either a pass or a regression:
 
-## Current CI blocker — important
+- `Verify Mihon compatibility`: cancelled
+- `Run Mihon regression tests`: cancelled
+- `Run release lint`: skipped
+- `Build signed optimized test APK`: cancelled
+- `Record test build status`: success
 
-The signed test APK has **not been produced yet** because the `verify` job currently runs the entire project-wide `lintRelease` as a hard gate after the scoped Mihon tests.
+Always inspect the latest workflow run before relying on this snapshot.
 
-In run `32857638181`:
+## Current branch / CI snapshot
 
-- Mihon regression tests: **success**
-- `lintRelease`: **failure**
-- signed optimized APK job: **skipped**
+At the last verification:
 
-Lint reported **20 errors and 406 warnings** across the existing project. The first reported error was unrelated to this Mihon patch:
+- Branch HEAD: `cf6b443a54ba87979012609f6fcbb70f7fe24074`
+- HEAD commit: `ci: record Mihon test build status [skip ci]`
+- Source commit immediately before that status commit: `410ca1b11b73942912371b838c71911976553f6b`
+- Draft PR #1 is open against `devel`
+- `.ci/mihon-fix-latest.json` records run `32870847041`
+- The workflow artifact `Futon-Mihon-Fix-Signed-Release` has **not** been verified to exist yet
+- Therefore no APK may be claimed or linked yet
 
-```text
-app/src/main/kotlin/io/github/landwarderer/futon/explore/data/MangaSourcesRepository.kt:387
-SuspiciousIndentation
+The machine-readable status currently records:
+
+```json
+{
+  "run_id": "32870847041",
+  "source_sha": "cf48994fefcce3c29f446b850a2f77b5605f2963",
+  "verify": "cancelled",
+  "signed_release": "cancelled"
+}
 ```
 
-The relevant line was `result.addAll(MangaParserSource.entries)` after the declaration around line 386.
+The workflow's report job can create a bot status commit after the source SHA, so compare the branch HEAD, its parent, the status JSON and the actual Actions run rather than assuming they are the same commit.
 
-Do not assume this unrelated legacy lint debt means the Mihon regression fix failed. The focused tests passed.
+## Current workflow blocker / next action
 
-### Recommended immediate next action
+The current `.github/workflows/mihon-fix-test-build.yml` still executes full project-wide `lintRelease` as a **hard gate** after the focused Mihon regression test.
 
-Inspect the **latest** workflow and Actions run before changing anything, because the status may have moved since this file was written. If the state is unchanged, make project-wide legacy lint diagnostic/non-blocking for this temporary test workflow (or otherwise gate only on regressions introduced by this change) while keeping the focused Mihon tests as a hard gate. Do not broaden this compatibility task into fixing hundreds of unrelated warnings merely to obtain a test APK unless there is a concrete reason.
+An earlier completed run showed the focused Mihon tests passing while project-wide lint failed with unrelated legacy debt (`20 errors, 406 warnings`; first observed error was `SuspiciousIndentation` in `MangaSourcesRepository.kt`). Do not broaden this task into repairing hundreds of unrelated lint findings just to create the temporary test APK.
 
-Then push the workflow adjustment on the same fix branch and let the signed optimized test job run.
+The next AI should:
+
+1. Re-read the current workflow at HEAD and inspect the latest Actions jobs/logs.
+2. Keep the focused Mihon regression test as a hard gate.
+3. Make legacy project-wide `lintRelease` diagnostic/non-blocking for this temporary Mihon test workflow, while still uploading/reporting lint diagnostics if useful.
+4. Ensure the status-report mechanism does not accidentally prevent or continuously supersede the real build run. Preserve `[skip ci]` on status-only commits and verify actual Actions behavior instead of assuming it.
+5. Push only to `fix/mihon-uncaught-exception-interceptor` and allow a fresh workflow run to complete.
+6. If the focused regression test fails, fix the Mihon compatibility code before attempting the APK build.
+7. If verification passes, let the signed optimized release job build, verify, and upload the artifact.
 
 ## Signed optimized test build
 
@@ -119,47 +143,35 @@ Intended APK name:
 
 `Futon-9.8.1-mihon-fix-test-signed-release.apk`
 
-The workflow builds `assembleRelease` with R8/minification/resource shrinking from the project's release configuration, verifies the APK with `apksigner`, and uploads a SHA-256 file plus `BUILD-INFO.txt`.
+The workflow is intended to build `assembleRelease` with the project's optimized release configuration, verify the APK with `apksigner`, and upload the APK plus SHA-256/build information.
 
-Signing behavior:
+Signing behavior in the current workflow:
 
 - If repository signing secrets are available, use the repository release key.
-- Otherwise the workflow generates a temporary 4096-bit RSA test key valid for 30 days and records `temporary-test-key` in build info.
-- An APK signed with the temporary key cannot update an installation signed with a different key; uninstall/reinstall may be required for testing.
+- Otherwise generate a temporary 4096-bit RSA test key valid for 30 days and record `temporary-test-key` in build info.
+- A temporary-key APK cannot update an installation signed with a different key; uninstall/reinstall may be required for testing.
 
-Never expose keystore material, signing passwords, or GitHub secrets in logs, commits, docs, or chat.
+Never expose keystore material, signing passwords, generated passwords, private keys or GitHub secrets in logs, commits, docs or chat.
 
-## Machine-readable status
+## Definition of done
 
-`.ci/mihon-fix-latest.json` records the latest workflow run/result. At the time of this handoff it recorded:
-
-```json
-{
-  "run_id": "32857638181",
-  "source_sha": "ef1f219de44db9c9a3ca5401708c2612d7ee4014",
-  "verify": "failure",
-  "signed_release": "skipped"
-}
-```
-
-The branch may have an additional bot status commit after that source SHA. Always inspect current HEAD and current Actions runs rather than treating this snapshot as immutable.
-
-## Definition of done for this task
-
-1. Focused Mihon regression tests pass.
+1. Focused Mihon regression tests pass on the final source commit.
 2. The optimized release APK builds successfully.
 3. `apksigner verify --verbose --print-certs` succeeds.
-4. The GitHub Actions artifact exists and can be downloaded.
-5. Report the exact run, source commit, artifact name, signing kind, SHA-256 and any install caveat to the user.
+4. GitHub Actions artifact `Futon-Mihon-Fix-Signed-Release` exists and can be downloaded.
+5. Record/report the exact workflow run ID, source commit, artifact name, signing kind, APK SHA-256 and install caveat.
 6. User installs it and tests real Keiyoushi extensions, especially Comix: browse/popular/search, manga details, chapters and image/page loading.
 7. Only after successful device testing should merging into `devel` be considered.
 
 ## Working rules for the next AI
 
-- First read `AGENTS.md`, `.github/copilot-instructions.md`, `CI.md`, this file, the current diff vs `devel`, the current branch HEAD, and the latest Actions logs.
+- First read `AGENTS.md`, `.github/copilot-instructions.md`, `CI.md`, this file, and `.ai/MIHON_FIX_HANDOFF_PROMPT.md`.
+- Then inspect the current branch HEAD, diff vs `devel`, PR #1, `.ci/mihon-fix-latest.json`, the workflow file and latest Actions jobs/logs.
+- Treat repository state and Actions results as authoritative over any static snapshot in docs.
 - Preserve the exact Mihon package/class names required by extensions.
 - Preserve source-specific User-Agent headers.
 - Preserve Futon's Cloudflare handling; do not replace it with a permanent no-op just to satisfy class-name checks.
 - Keep `UncaughtExceptionInterceptor` in the application interceptor list, ahead of later application interceptors.
 - Do not merge or push unrelated cleanup to `devel`.
+- Do not hide failing focused tests by weakening the Mihon-specific test gate.
 - Never claim an APK exists until the workflow artifact actually exists.
