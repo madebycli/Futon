@@ -188,15 +188,29 @@ class WebViewExecutor @Inject constructor(
         }.isSuccess
     }
 
+    /**
+     * WebView proxy configuration is asynchronous, therefore obtaining a browser instance is
+     * suspend just like Usagi's implementation. The configured WebView is then safely reused.
+     */
     @MainThread
-    private fun obtainWebView(): WebView = webViewCached?.get() ?: WebView(context).also {
-        it.configureForParser(null)
-        webViewCached = WeakReference(it)
-        // Usagi applies the app's current proxy configuration before running browser-based
-        // Cloudflare challenges, then explicitly resumes the WebView and timers.
-        proxyProvider.applyWebViewConfig()
-        it.onResume()
-        it.resumeTimers()
+    private suspend fun obtainWebView(): WebView {
+        webViewCached?.get()?.let {
+            return it
+        }
+
+        return withContext(Dispatchers.Main.immediate) {
+            webViewCached?.get()?.let {
+                return@withContext it
+            }
+
+            WebView(context).also {
+                it.configureForParser(null)
+                webViewCached = WeakReference(it)
+                proxyProvider.applyWebViewConfig()
+                it.onResume()
+                it.resumeTimers()
+            }
+        }
     }
 
     private fun MangaSource.getUserAgent(): String? {
@@ -206,7 +220,9 @@ class WebViewExecutor @Inject constructor(
 
     @MainThread
     fun getDefaultUserAgentSync() = runCatching {
-        obtainWebView().settings.userAgentString.sanitizeHeaderValue().trim().nullIfEmpty()
+        val userAgent = webViewCached?.get()?.settings?.userAgentString
+            ?: WebSettings.getDefaultUserAgent(context)
+        userAgent.sanitizeHeaderValue().trim().nullIfEmpty()
     }.onFailure { e ->
         e.printStackTraceDebug()
     }.getOrNull()
