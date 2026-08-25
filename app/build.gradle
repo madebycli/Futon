@@ -198,11 +198,10 @@ dependencies {
 
     implementation platform(libs.okhttp.bom)
 	implementation libs.okhttp
-	// Keiyoushi compiles these against Mihon as host-provided APIs. Futon does not
-	// call them directly, so keep them off the compile/ASM transform classpath while
-	// still packaging their classes for extension linkage at runtime.
-	runtimeOnly 'com.squareup.okhttp3:okhttp-brotli'
-	runtimeOnly 'com.squareup.okhttp3:okhttp-zstd'
+	// Match Mihon's host classpath: Keiyoushi compiles against these OkHttp APIs,
+	// so resolve them on the same Android variant/classpath as OkHttp itself.
+	implementation 'com.squareup.okhttp3:okhttp-brotli'
+	implementation 'com.squareup.okhttp3:okhttp-zstd'
 	implementation libs.okhttp.tls
 	implementation libs.okhttp.dnsoverhttps
 	implementation libs.okio
@@ -280,7 +279,8 @@ sentry {
 	
 	// Disable instrumentation that causes manifest/UUID changes
 	tracingInstrumentation { enabled = false }
-	autoInstallation { enabled = false }
+	autoInstallation { enabled = false
+	}
 	
 	// Disable telemetry and dependency reporting that cause non-deterministic builds
 	includeDependenciesReport = false
