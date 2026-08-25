@@ -2,6 +2,59 @@
 
 This document describes the automated build and release process for Futon.
 
+## Active Mihon / Keiyoushi Test Workflow
+
+The branch `fix/mihon-uncaught-exception-interceptor` contains a temporary workflow dedicated to validating the current Mihon/Tachiyomi Keiyoushi compatibility fix:
+
+`/.github/workflows/mihon-fix-test-build.yml`
+
+For the complete handoff state and implementation details, read `.ai/MIHON_FIX_CONTEXT.md` before changing this workflow or the Mihon network bridge.
+
+### What it verifies
+
+The hard compatibility test is:
+
+```bash
+./gradlew testDebugUnitTest \
+  --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
+  --stacktrace \
+  --no-build-cache \
+  --no-configuration-cache
+```
+
+The test covers the application-interceptor contract expected by current Keiyoushi sources, derived OkHttp clients, User-Agent preservation/defaulting, and unchecked-exception conversion.
+
+### Current known state
+
+In GitHub Actions run `32857638181`, the focused Mihon regression tests completed successfully. The subsequent project-wide `lintRelease` task failed with existing lint debt (`20 errors, 406 warnings`), so the signed APK job was skipped. The first reported lint error was an unrelated `SuspiciousIndentation` finding in `app/src/main/kotlin/io/github/landwarderer/futon/explore/data/MangaSourcesRepository.kt` around line 387.
+
+This means the scoped Mihon tests passed; it does **not** mean the Mihon compatibility test failed. Before acting on this snapshot, inspect the latest branch HEAD, `.ci/mihon-fix-latest.json`, and latest Actions run because CI may have advanced.
+
+For this temporary test lane, avoid broad unrelated cleanup solely to satisfy legacy project-wide lint. Prefer keeping the focused regression tests as a hard gate and making legacy lint diagnostic/non-blocking or otherwise limiting the gate to regressions introduced by the fix.
+
+### Signed optimized APK
+
+After verification passes, the workflow builds:
+
+```bash
+./gradlew assembleRelease \
+  -PversionName=9.8.1-mihon-fix-test \
+  -PversionCode=90802 \
+  --stacktrace \
+  --no-build-cache \
+  --no-configuration-cache
+```
+
+It verifies the resulting APK using `apksigner`, then uploads artifact `Futon-Mihon-Fix-Signed-Release` containing:
+
+- `Futon-9.8.1-mihon-fix-test-signed-release.apk`
+- its `.sha256` checksum
+- `BUILD-INFO.txt`
+
+If the normal repository signing secrets are available, they are used. Otherwise this temporary workflow generates a 4096-bit RSA test key valid for 30 days. A temporary-key APK cannot update an installation signed with another key, so uninstall/reinstall may be required. Never expose signing secrets or keystore material.
+
+`.ci/mihon-fix-latest.json` is the machine-readable last-run status written by this workflow.
+
 ## Automated Workflows
 
 The project uses GitHub Actions for continuous integration and automated releases:
@@ -113,6 +166,7 @@ export KEY_PASSWORD=key-password
 - **Release builds**: Check GitHub Releases
 - **Nightly builds**: Check GitHub Releases (marked as pre-release)
 - **PR builds**: Check "Actions" tab → "Debug Build" → Artifacts section
+- **Mihon fix build**: Check "Actions" → "Mihon Fix Signed Test Build" and `.ci/mihon-fix-latest.json` on the fix branch
 
 ## Troubleshooting
 
@@ -127,6 +181,9 @@ Ensure Android SDK is properly set up. The workflows use `android-actions/setup-
 ### Nightly build is skipped unexpectedly
 The workflow checks for commits since the last nightly release. If no commits exist, the build is skipped. Force a build with the "workflow_dispatch" trigger.
 
+### Mihon test APK job is skipped
+Inspect the `Verify Mihon compatibility` job first. The focused Mihon regression test and project-wide release lint are separate signals. At the documented handoff state, the regression test passed but legacy project-wide lint failed and prevented the signed job from running.
+
 ## Certificate Fingerprints
 
 Current release keystore SHA-256 fingerprint:
@@ -134,4 +191,4 @@ Current release keystore SHA-256 fingerprint:
 EF:48:B2:2E:F2:C5:40:45:53:1F:6E:76:00:C2:7E:C3:D0:3B:71:22:1E:0B:05:FF:B6:8E:33:57:CF:8E:4D:40
 ```
 
-This matches the built-in app validator check in `AppValidator.kt`. All release builds must use a keystore with this fingerprint for proper app signature validation.
+This matches the built-in app validator check in `AppValidator.kt`. All release builds intended to behave as normal release installations must use a keystore with this fingerprint for proper app signature validation. Temporary Mihon test builds signed with the fallback test key are explicitly test-only and may not pass assumptions tied to the production signature.
