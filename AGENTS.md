@@ -9,6 +9,18 @@
 
 ---
 
+## Active Work: Mihon / Keiyoushi Compatibility Fix
+
+An in-progress compatibility fix exists on branch `fix/mihon-uncaught-exception-interceptor`. It addresses Keiyoushi/Mihon extensions failing with `UncaughtExceptionInterceptor must be present in default client` and adds a temporary signed optimized APK workflow.
+
+**Before continuing this work, read `.ai/MIHON_FIX_CONTEXT.md` and `CI.md`.** Then inspect the current branch HEAD, diff vs `devel`, `.ci/mihon-fix-latest.json`, and the latest GitHub Actions logs instead of assuming the snapshot in the context file is still current.
+
+At the last verified state, the focused `MihonNetworkHelperTest` regression suite passed. The signed APK job was skipped only because the workflow still treated unrelated project-wide `lintRelease` debt as a hard gate. Keep the focused Mihon tests as the authoritative compatibility gate, do not perform broad unrelated cleanup solely to get the temporary APK, and never claim an APK exists until a real workflow artifact is present.
+
+Keep all changes for this task on the fix branch. Do not merge into `devel` until the user has installed the test APK and verified real Keiyoushi extensions, especially Comix.
+
+---
+
 ## Build Commands
 
 ### Standard Builds
@@ -598,6 +610,7 @@ class MyWorker @AssistedInject constructor(
 - **Parsers Repo:** https://github.com/AppFuton/futon-parsers
 - **Original Kotatsu:** https://github.com/KotatsuApp/Kotatsu
 - **CI/CD Setup:** See [CI.md](./CI.md)
+- **Active Mihon fix handoff:** See [.ai/MIHON_FIX_CONTEXT.md](./.ai/MIHON_FIX_CONTEXT.md)
 - **Contributing:** See [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
