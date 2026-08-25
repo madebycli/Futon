@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mihon-fix-signed-test-build
+  group: mihon-fix-signed-test-build-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -43,29 +43,12 @@ jobs:
           --no-build-cache
           --no-configuration-cache
 
-      - name: Run release lint (diagnostic)
-        id: release-lint
-        continue-on-error: true
+      - name: Run release lint
         run: >-
           ./gradlew lintRelease
           --stacktrace
           --no-build-cache
           --no-configuration-cache
-
-      - name: Upload lint diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Futon-Mihon-Fix-Lint-Diagnostics
-          path: |
-            app/build/reports/lint-results-release.html
-            app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Report legacy lint status
-        if: steps.release-lint.outcome == 'failure'
-        run: echo "Release lint reported existing project-wide findings; scoped Mihon regression tests passed, so the test APK build will continue."
 
   signed-release:
     name: Build signed optimized test APK
@@ -86,33 +69,51 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Validate signing secrets
+      - name: Prepare signing key
         env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_FILE }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          REPO_KEYSTORE_B64: ${{ secrets.KEYSTORE_FILE }}
+          REPO_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          REPO_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          REPO_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_B64" || { echo "KEYSTORE_FILE secret is missing"; exit 1; }
-          test -n "$KEYSTORE_PASSWORD" || { echo "KEYSTORE_PASSWORD secret is missing"; exit 1; }
-          test -n "$KEY_ALIAS" || { echo "KEY_ALIAS secret is missing"; exit 1; }
-          test -n "$KEY_PASSWORD" || { echo "KEY_PASSWORD secret is missing"; exit 1; }
-
-      - name: Decode signing keystore
-        env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_FILE }}
-        run: |
-          set -euo pipefail
-          printf '%s' "$KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/keystore.jks"
-          test -s "$GITHUB_WORKSPACE/keystore.jks"
+          KEYSTORE="$GITHUB_WORKSPACE/keystore.jks"
+          if [ -n "$REPO_KEYSTORE_B64" ] && \
+             [ -n "$REPO_KEYSTORE_PASSWORD" ] && \
+             [ -n "$REPO_KEY_ALIAS" ] && \
+             [ -n "$REPO_KEY_PASSWORD" ]; then
+            printf '%s' "$REPO_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+            test -s "$KEYSTORE"
+            echo "KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$REPO_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$REPO_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$REPO_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "SIGNING_KIND=repository-release-key" >> "$GITHUB_ENV"
+            echo "Using repository release signing key."
+          else
+            TEMP_PASSWORD="futon-mihon-test-90802"
+            TEMP_ALIAS="futon-mihon-test"
+            keytool -genkeypair \
+              -keystore "$KEYSTORE" \
+              -storepass "$TEMP_PASSWORD" \
+              -keypass "$TEMP_PASSWORD" \
+              -alias "$TEMP_ALIAS" \
+              -keyalg RSA \
+              -keysize 4096 \
+              -validity 30 \
+              -dname "CN=Futon Mihon Temporary Test,O=Futon Test,C=DE" \
+              -noprompt
+            test -s "$KEYSTORE"
+            echo "KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$TEMP_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$TEMP_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$TEMP_PASSWORD" >> "$GITHUB_ENV"
+            echo "SIGNING_KIND=temporary-test-key" >> "$GITHUB_ENV"
+            echo "Repository release signing secrets are unavailable; using a 30-day temporary test key."
+          fi
 
       - name: Build signed optimized release APK
         env:
-          KEYSTORE_FILE: ${{ github.workspace }}/keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: >-
@@ -136,10 +137,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/test-artifact"
+          APK_NAME="Futon-9.8.1-mihon-fix-test-signed-release.apk"
           cp "$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk" \
-             "$GITHUB_WORKSPACE/test-artifact/Futon-9.8.1-mihon-fix-test-signed-release.apk"
+             "$GITHUB_WORKSPACE/test-artifact/$APK_NAME"
           cd "$GITHUB_WORKSPACE/test-artifact"
-          sha256sum Futon-9.8.1-mihon-fix-test-signed-release.apk > Futon-9.8.1-mihon-fix-test-signed-release.apk.sha256
+          sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          {
+            echo "Build: optimized release (R8 minify + resource shrinking)"
+            echo "Version: 9.8.1-mihon-fix-test (90802)"
+            echo "Signing: $SIGNING_KIND"
+            if [ "$SIGNING_KIND" = "temporary-test-key" ]; then
+              echo "Install note: this temporary signature cannot update an APK signed with a different key."
+            fi
+          } > BUILD-INFO.txt
 
       - name: Upload signed test APK
         uses: actions/upload-artifact@v4
