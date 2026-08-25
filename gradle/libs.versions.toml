@@ -33,8 +33,8 @@ lifecycle = "2.9.4"
 markwon = "4.6.2"
 material = "1.14.0-alpha05"
 moshi = "1.15.2"
-okhttp = "5.2.1"
-okio = "3.16.1"
+okhttp = "5.5.0"
+okio = "3.18.1"
 parsers = "204c9ee032"
 preference = "1.2.1"
 quickjsKt = "1.0.5"
@@ -63,7 +63,7 @@ adapterdelegates = { module = "com.hannesdorfmann:adapterdelegates4-kotlin-dsl",
 adapterdelegates-viewbinding = { module = "com.hannesdorfmann:adapterdelegates4-kotlin-dsl-viewbinding", version.ref = "adapterdelegates" }
 androidx-activity = { module = "androidx.activity:activity-ktx", version.ref = "activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
-androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
+androidx-biometric = { module = "androidx.biometric:biometric-ktx", version.ref = "biometric" }
 androidx-collection = { module = "androidx.collection:collection-ktx", version.ref = "collections" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
 androidx-core = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
