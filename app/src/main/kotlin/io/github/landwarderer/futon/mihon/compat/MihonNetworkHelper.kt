@@ -49,7 +49,8 @@ class MihonNetworkHelper(
      *
      * The first three application interceptors deliberately use Mihon's expected class
      * names. Current Keiyoushi sources validate these names on the default client before
-     * applying source-specific configuration.
+     * applying source-specific configuration. They also reject legacy IgnoreGzip/Brotli
+     * network interceptors, so those are deliberately excluded when copying the base stack.
      */
     override val client: OkHttpClient = run {
         val builder = OkHttpClient.Builder()
@@ -99,9 +100,18 @@ class MihonNetworkHelper(
             }
         }
 
-        // Copy network interceptors.
+        // Current Keiyoushi KeiSource rejects the legacy Mihon network compression interceptors
+        // before it applies source-specific configuration. Preserve unrelated Futon network
+        // interceptors, but never leak those forbidden defaults into the compatibility client.
         baseClient.networkInterceptors.forEach { interceptor ->
-            builder.addNetworkInterceptor(interceptor)
+            if (interceptor.javaClass.simpleName in MIHON_FORBIDDEN_NETWORK_INTERCEPTOR_NAMES) {
+                Log.d(
+                    "MihonNetworkHelper",
+                    "Skipping Keiyoushi-incompatible network interceptor ${interceptor.javaClass.simpleName}",
+                )
+            } else {
+                builder.addNetworkInterceptor(interceptor)
+            }
         }
 
         // Add a Mihon-specific fallback detector.
@@ -360,6 +370,10 @@ class MihonNetworkHelper(
             "UncaughtExceptionInterceptor",
             "UserAgentInterceptor",
             "CloudflareInterceptor",
+        )
+        private val MIHON_FORBIDDEN_NETWORK_INTERCEPTOR_NAMES = setOf(
+            "IgnoreGzipInterceptor",
+            "BrotliInterceptor",
         )
     }
 }
