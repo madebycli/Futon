@@ -8,13 +8,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.annotation.MainThread
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import io.github.landwarderer.futon.core.exceptions.CloudFlareException
+import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.network.CommonHeaders
 import io.github.landwarderer.futon.core.network.cookies.MutableCookieJar
 import io.github.landwarderer.futon.core.network.proxy.ProxyProvider
@@ -23,6 +18,12 @@ import io.github.landwarderer.futon.core.parser.ParserMangaRepository
 import io.github.landwarderer.futon.core.util.ext.configureForParser
 import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import io.github.landwarderer.futon.core.util.ext.sanitizeHeaderValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.koitharu.kotatsu.parsers.model.MangaSource
 import org.koitharu.kotatsu.parsers.util.nullIfEmpty
 import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
@@ -32,34 +33,33 @@ import javax.inject.Provider
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
-import kotlin.ranges.contains
 
 @Singleton
 class WebViewExecutor @Inject constructor(
-	@ApplicationContext private val context: Context,
-	private val proxyProvider: ProxyProvider,
-	private val cookieJar: MutableCookieJar,
-	private val mangaRepositoryFactoryProvider: Provider<MangaRepository.Factory>,
+    @ApplicationContext private val context: Context,
+    private val proxyProvider: ProxyProvider,
+    private val cookieJar: MutableCookieJar,
+    private val mangaRepositoryFactoryProvider: Provider<MangaRepository.Factory>,
 ) {
 
-	private var webViewCached: WeakReference<WebView>? = null
-	private val mutex = Mutex()
+    private var webViewCached: WeakReference<WebView>? = null
+    private val mutex = Mutex()
 
-	val defaultUserAgent: String? by lazy {
-		try {
-			WebSettings.getDefaultUserAgent(context)
-		} catch (e: AndroidRuntimeException) {
-			e.printStackTraceDebug("WebViewExecutor::defaultUserAgent")
-			// Probably WebView is not available
-			null
-		}
-	}
+    val defaultUserAgent: String? by lazy {
+        try {
+            WebSettings.getDefaultUserAgent(context)
+        } catch (e: AndroidRuntimeException) {
+            e.printStackTraceDebug("WebViewExecutor::defaultUserAgent")
+            // Probably WebView is not available
+            null
+        }
+    }
 
     suspend fun evaluateJs(
         baseUrl: String?,
         script: String,
         timeoutMs: Long = 15000L,
-        preserveCookies: Boolean = false
+        preserveCookies: Boolean = false,
     ): String? = mutex.withLock {
         withContext(Dispatchers.Main.immediate) {
             val webView = obtainWebView()
@@ -82,7 +82,6 @@ class WebViewExecutor @Inject constructor(
                         if (!hasResumed) {
                             hasResumed = true
                             handler.removeCallbacksAndMessages(null)
-                            // Immediately stop further loading/polling
                             webView.stopLoading()
                             continuation.resume(result)
                         }
@@ -92,9 +91,7 @@ class WebViewExecutor @Inject constructor(
                         val startTime = System.currentTimeMillis()
                         override fun run() {
                             if (hasResumed) return
-                            if (System.currentTimeMillis() - startTime >= timeoutMs) {
-                                return
-                            }
+                            if (System.currentTimeMillis() - startTime >= timeoutMs) return
                             webView.evaluateJavascript(script) { result ->
                                 if (hasResumed) return@evaluateJavascript
                                 val content = result?.takeUnless { it == "null" }
@@ -122,12 +119,10 @@ class WebViewExecutor @Inject constructor(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (hasResumed || url == "about:blank") return
-                            println("DEBUG: onPageFinished. Checking content...")
                             view?.evaluateJavascript(script) { result ->
                                 if (hasResumed) return@evaluateJavascript
                                 val content = result?.takeUnless { it == "null" }
                                 if (!content.isNullOrBlank()) {
-                                    println("DEBUG: Content found on pageFinished. Returning immediately.")
                                     resumeOnce(content)
                                 }
                             }
@@ -142,59 +137,72 @@ class WebViewExecutor @Inject constructor(
                     }
 
                     handler.postDelayed(contentPoller, 1000)
-
                     handler.postDelayed({
-                        if (!hasResumed) {
-                            println("ERROR: Overall operation timed out.")
-                            resumeOnce(null)
-                        }
+                        if (!hasResumed) resumeOnce(null)
                     }, timeoutMs)
                 }
             } finally {
-                // If already resumed, stopLoading() was called; this is a safety call.
                 webView.stopLoading()
             }
         }
     }
 
+    /**
+     * Try to resolve a Cloudflare managed challenge in a real Chromium WebView.
+     *
+     * This follows Usagi's resolver model: let WebView own all browser networking and wait
+     * until the shared cookie jar receives a new cf_clearance cookie. For Mihon extensions
+     * the app-side MangaSource tag is often unavailable, so prefer the original request's
+     * User-Agent captured in CloudFlareProtectedException.
+     */
     suspend fun tryResolveCaptcha(exception: CloudFlareException, timeout: Long): Boolean = mutex.withLock {
-		runCatchingCancellable {
-			withContext(Dispatchers.Main.immediate) {
-				val webView = obtainWebView()
-				try {
-					exception.source.getUserAgent()?.let {
-						webView.settings.userAgentString = it
-					}
-					withTimeout(timeout) {
-						suspendCancellableCoroutine { cont ->
-							webView.webViewClient = CaptchaContinuationClient(
-								cookieJar = cookieJar,
-								targetUrl = exception.url,
-								continuation = cont,
-							)
-							webView.loadUrl(exception.url)
-						}
-					}
-				} finally {
-					webView.reset()
-				}
-			}
-		}.onFailure { e ->
-			exception.addSuppressed(e)
-			e.printStackTraceDebug("WebViewExecutor::tryResolveCaptcha")
-		}.isSuccess
-	}
+        runCatchingCancellable {
+            withContext(Dispatchers.Main.immediate) {
+                val webView = obtainWebView()
+                try {
+                    val requestUserAgent = (exception as? CloudFlareProtectedException)
+                        ?.headers
+                        ?.get(CommonHeaders.USER_AGENT)
+                    val userAgent = requestUserAgent ?: exception.source.getUserAgent()
+                    if (!userAgent.isNullOrBlank()) {
+                        webView.settings.userAgentString = userAgent
+                    }
+
+                    withTimeout(timeout) {
+                        suspendCancellableCoroutine { cont ->
+                            webView.webViewClient = CaptchaContinuationClient(
+                                cookieJar = cookieJar,
+                                targetUrl = exception.url,
+                                continuation = cont,
+                            )
+                            webView.loadUrl(exception.url)
+                        }
+                    }
+                } finally {
+                    webView.reset()
+                }
+            }
+        }.onFailure { e ->
+            exception.addSuppressed(e)
+            e.printStackTraceDebug("WebViewExecutor::tryResolveCaptcha")
+        }.isSuccess
+    }
 
     @MainThread
     private fun obtainWebView(): WebView = webViewCached?.get() ?: WebView(context).also {
         it.configureForParser(null)
         webViewCached = WeakReference(it)
+        // Usagi applies the app's current proxy configuration before running browser-based
+        // Cloudflare challenges, then explicitly resumes the WebView and timers.
+        proxyProvider.applyWebViewConfig()
+        it.onResume()
+        it.resumeTimers()
     }
 
-	private fun MangaSource.getUserAgent(): String? {
-		val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserMangaRepository
-		return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
-	}
+    private fun MangaSource.getUserAgent(): String? {
+        val repository = mangaRepositoryFactoryProvider.get().create(this) as? ParserMangaRepository
+        return repository?.getRequestHeaders()?.get(CommonHeaders.USER_AGENT)
+    }
 
     @MainThread
     fun getDefaultUserAgentSync() = runCatching {
@@ -203,12 +211,12 @@ class WebViewExecutor @Inject constructor(
         e.printStackTraceDebug()
     }.getOrNull()
 
-	@MainThread
-	private fun WebView.reset() {
-		stopLoading()
-		webViewClient = WebViewClient()
-		settings.userAgentString = defaultUserAgent
-		loadDataWithBaseURL(null, " ", "text/html", null, null)
-		clearHistory()
-	}
+    @MainThread
+    private fun WebView.reset() {
+        stopLoading()
+        webViewClient = WebViewClient()
+        settings.userAgentString = defaultUserAgent
+        loadDataWithBaseURL(null, " ", "text/html", null, null)
+        clearHistory()
+    }
 }
