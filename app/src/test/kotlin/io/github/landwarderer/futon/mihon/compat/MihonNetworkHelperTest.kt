@@ -36,10 +36,10 @@ class MihonNetworkHelperTest {
     }
 
     @Test
-    fun hostRuntimeProvidesOkHttpBrotliClass() {
+    fun hostRuntimeInitializesOkHttpBrotliClass() {
         val brotliClass = Class.forName(
             "okhttp3.brotli.BrotliInterceptor",
-            false,
+            true,
             MihonNetworkHelperTest::class.java.classLoader,
         )
 
