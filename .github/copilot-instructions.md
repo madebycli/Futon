@@ -2,6 +2,14 @@
 
 These notes help AI agents work effectively in this Android/Kotlin codebase by capturing architecture, workflows, and project-specific patterns.
 
+## Active Work: Mihon / Keiyoushi Compatibility Fix
+
+There is an active, not-yet-merged compatibility fix on branch `fix/mihon-uncaught-exception-interceptor` for Keiyoushi/Mihon extensions that failed with `UncaughtExceptionInterceptor must be present in default client`.
+
+Before touching Mihon/Tachiyomi compatibility code, read `.ai/MIHON_FIX_CONTEXT.md`, then inspect the current branch HEAD, diff vs `devel`, `.ci/mihon-fix-latest.json`, and the latest GitHub Actions logs. The focused `MihonNetworkHelperTest` suite has already passed; at the last verified state the signed test APK was still blocked because project-wide `lintRelease` reported unrelated pre-existing lint errors. Do not mistake that lint failure for a failure of the scoped Mihon regression tests.
+
+Keep this work on the fix branch until the user has installed a real test APK and verified real Keiyoushi sources such as Comix. Do not merge into `devel` without that device-test confirmation. Never claim an APK exists until the workflow artifact actually exists.
+
 ## Overview
 - App: Android manga reader; Kotlin, Gradle, Java 17, minSdk 23, target/compileSdk 36.
 - DI: Hilt (`@HiltAndroidApp` in `BaseApp`), bindings/providers in `AppModule`.
@@ -25,6 +33,7 @@ These notes help AI agents work effectively in this Android/Kotlin codebase by c
   - Tag `v*` → release build to GitHub Releases.
   - Weekly `nightly` with smart skip when no new commits.
   - PRs build `debug` and attach APK artifacts.
+  - The active Mihon fix branch has a temporary signed optimized test workflow in `.github/workflows/mihon-fix-test-build.yml`; see `.ai/MIHON_FIX_CONTEXT.md` and `CI.md` before modifying it.
 - Required secrets: `KEYSTORE_FILE` (base64), `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
 - Local dev: If env vars missing, Gradle prompts interactively; `local.properties` may supply values like `tg_backup_bot_token`.
 - Signature check: `AppValidator` verifies keystore SHA-256; release builds must match the configured fingerprint.
