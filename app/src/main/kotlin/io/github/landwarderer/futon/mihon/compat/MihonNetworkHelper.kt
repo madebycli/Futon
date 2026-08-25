@@ -2,8 +2,12 @@ package io.github.landwarderer.futon.mihon.compat
 
 import android.util.Log
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
+import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
+import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import io.github.landwarderer.futon.core.exceptions.CloudFlareBlockedException
 import io.github.landwarderer.futon.core.exceptions.InteractiveActionRequiredException
+import io.github.landwarderer.futon.core.network.CloudFlareInterceptor as FutonCloudFlareInterceptor
 import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
 import io.github.landwarderer.futon.mihon.model.toMangaSource
 import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
@@ -23,10 +27,10 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Implementation of Mihon's NetworkHelper interface.
- * 
+ *
  * Wraps App's existing OkHttpClient to provide Mihon extensions with
  * access to the network stack, including CloudFlare bypassing and cookie management.
- * 
+ *
  * Note: We create a new client without GZipInterceptor because Mihon extensions
  * handle their own request encoding. App's GZipInterceptor incorrectly
  * adds Content-Encoding: gzip header without actually compressing the body,
@@ -38,15 +42,19 @@ class MihonNetworkHelper(
     val cookieJar: CookieJar,
     private val webViewExecutor: WebViewExecutor? = null,
 ) : NetworkHelper() {
-    
+
     /**
      * The OkHttpClient for Mihon extensions.
      * We rebuild without GZipInterceptor to prevent incorrect Content-Encoding headers.
+     *
+     * The first three application interceptors deliberately use Mihon's expected class
+     * names. Current Keiyoushi sources validate these names on the default client before
+     * applying source-specific configuration.
      */
     override val client: OkHttpClient = run {
         val builder = OkHttpClient.Builder()
-        
-        // Copy configuration from base client
+
+        // Copy configuration from base client.
         builder.connectTimeout(baseClient.connectTimeoutMillis.toLong(), TimeUnit.MILLISECONDS)
         builder.readTimeout(baseClient.readTimeoutMillis.toLong(), TimeUnit.MILLISECONDS)
         builder.writeTimeout(baseClient.writeTimeoutMillis.toLong(), TimeUnit.MILLISECONDS)
@@ -58,29 +66,40 @@ class MihonNetworkHelper(
         builder.followRedirects(baseClient.followRedirects)
         builder.followSslRedirects(baseClient.followSslRedirects)
         builder.retryOnConnectionFailure(baseClient.retryOnConnectionFailure)
-        
-        // Wrap exceptions thrown by subsequent interceptors (especially from extensions)
-        builder.addInterceptor { chain ->
-            try {
-                chain.proceed(chain.request())
-            } catch (e: Throwable) {
-                // OkHttp Dispatcher will crash the app if intercepted throws unchecked exception instead of IOException.
-                // Extensions (like Baozi) might throw plain Exceptions for errors like "Socket closed".
-                if (e is IOException) throw e
-                throw IOException(e.message, e)
-            }
-        }
-        
-        // Copy interceptors but exclude GZipInterceptor
+
+        // Match Mihon's default application interceptor contract. Keep the uncaught-exception
+        // wrapper first so unchecked failures from extensions become ordinary IO failures.
+        builder.addInterceptor(UncaughtExceptionInterceptor())
+        builder.addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
+        builder.addInterceptor(CloudflareInterceptor())
+
+        // Copy app interceptors while excluding handlers replaced by the compatibility chain.
         baseClient.interceptors.forEach { interceptor ->
-            if (interceptor.javaClass.simpleName != "GZipInterceptor") {
-                builder.addInterceptor(interceptor)
-            } else {
-                Log.d("MihonNetworkHelper", "Skipping GZipInterceptor for Mihon client")
+            when {
+                interceptor.javaClass.simpleName == "GZipInterceptor" -> {
+                    Log.d("MihonNetworkHelper", "Skipping GZipInterceptor for Mihon client")
+                }
+
+                interceptor is FutonCloudFlareInterceptor -> {
+                    // CloudflareInterceptor above delegates to Futon's implementation while
+                    // exposing the exact Mihon class name expected by Keiyoushi.
+                    Log.d("MihonNetworkHelper", "Replacing Futon CloudFlareInterceptor with Mihon-compatible wrapper")
+                }
+
+                interceptor.javaClass.simpleName in MIHON_COMPAT_INTERCEPTOR_NAMES -> {
+                    // Avoid duplicate compatibility interceptors if the base stack starts
+                    // providing them in the future.
+                    Log.d(
+                        "MihonNetworkHelper",
+                        "Skipping duplicate ${interceptor.javaClass.simpleName}",
+                    )
+                }
+
+                else -> builder.addInterceptor(interceptor)
             }
         }
-        
-        // Copy network interceptors
+
+        // Copy network interceptors.
         baseClient.networkInterceptors.forEach { interceptor ->
             builder.addNetworkInterceptor(interceptor)
         }
@@ -154,8 +173,8 @@ class MihonNetworkHelper(
                 else -> response
             }
         }
-        
-        // Add debug logging interceptor for Mihon extensions
+
+        // Add debug logging interceptor for Mihon extensions.
         builder.addInterceptor { chain ->
             val request = chain.request()
             val requestCookies = cookieJar.loadForRequest(request.url)
@@ -166,18 +185,18 @@ class MihonNetworkHelper(
                 "RequestMeta: host=${request.url.host}, ua=${request.header("User-Agent")}, referer=${request.header("Referer")}, origin=${request.header("Origin")}, hasCfClearance=${cfClearanceCookie != null}, cfClearance=${maskCookieValue(cfClearanceCookie)}, cookies=[$cookieNames]",
             )
             Log.d("MihonNetwork", "Request: ${request.method} ${request.url}")
-            
+
             val response = chain.proceed(request)
-            
-            // Log response info
+
+            // Log response info.
             val responseCode = response.code
             val contentType = response.header("Content-Type")
             Log.d(
                 "MihonNetwork",
                 "Response: $responseCode, Content-Type: $contentType, cf-ray=${response.header("cf-ray")}, cf-mitigated=${response.header("cf-mitigated")}, server=${response.header("server")}, URL: ${request.url}",
             )
-            
-            // If response is not successful, log the first 200 chars of body for debugging
+
+            // If response is not successful, log the first 200 chars of body for debugging.
             if (!response.isSuccessful) {
                 val source = response.body.source()
                 source.request(200)
@@ -185,19 +204,19 @@ class MihonNetworkHelper(
                 val preview = buffer.readUtf8(minOf(200, buffer.size))
                 Log.w("MihonNetwork", "Non-successful response ($responseCode) preview: $preview")
             }
-            
+
             response
         }
-        
+
         builder.build()
     }
-    
+
     /**
      * @deprecated Since extension-lib 1.5, CloudFlare is handled by the regular client.
      */
     @Deprecated("The regular client handles Cloudflare by default")
     override val cloudflareClient: OkHttpClient = client
-    
+
     /**
      * Returns the default user agent string.
      */
@@ -303,7 +322,7 @@ class MihonNetworkHelper(
             Log.d("MihonNetwork", "WebView fallback skipped: no cf_clearance for host=${request.url.host}")
             return null
         }
-        
+
         Log.i("MihonNetwork", "WebView fallback is disabled due to missing implementation for WebViewExecutor.fetchWithBrowserContext")
         return null
     }
@@ -337,5 +356,10 @@ class MihonNetworkHelper(
     companion object {
         private const val INTERACTIVE_RETRY_WINDOW_MS = 10 * 60 * 1000L
         private val recentChallengeAttempts = ConcurrentHashMap<String, ChallengeAttempt>()
+        private val MIHON_COMPAT_INTERCEPTOR_NAMES = setOf(
+            "UncaughtExceptionInterceptor",
+            "UserAgentInterceptor",
+            "CloudflareInterceptor",
+        )
     }
 }
