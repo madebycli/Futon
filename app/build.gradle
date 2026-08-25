@@ -198,7 +198,11 @@ dependencies {
 
     implementation platform(libs.okhttp.bom)
 	implementation libs.okhttp
-	implementation 'com.squareup.okhttp3:okhttp-brotli'
+	// Keiyoushi compiles these against Mihon as host-provided APIs. Futon does not
+	// call them directly, so keep them off the compile/ASM transform classpath while
+	// still packaging their classes for extension linkage at runtime.
+	runtimeOnly 'com.squareup.okhttp3:okhttp-brotli'
+	runtimeOnly 'com.squareup.okhttp3:okhttp-zstd'
 	implementation libs.okhttp.tls
 	implementation libs.okhttp.dnsoverhttps
 	implementation libs.okio
