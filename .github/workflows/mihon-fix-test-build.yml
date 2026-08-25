@@ -150,3 +150,46 @@ jobs:
       - name: Remove keystore
         if: always()
         run: rm -f "$GITHUB_WORKSPACE/keystore.jks"
+
+  report:
+    name: Record test build status
+    if: always()
+    needs:
+      - verify
+      - signed-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/mihon-uncaught-exception-interceptor
+
+      - name: Write run status
+        env:
+          RUN_ID: ${{ github.run_id }}
+          SOURCE_SHA: ${{ github.sha }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          SIGNED_RESULT: ${{ needs.signed-release.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci
+          cat > .ci/mihon-fix-latest.json <<EOF
+          {
+            "run_id": "$RUN_ID",
+            "source_sha": "$SOURCE_SHA",
+            "verify": "$VERIFY_RESULT",
+            "signed_release": "$SIGNED_RESULT"
+          }
+          EOF
+
+      - name: Commit run status
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci/mihon-fix-latest.json
+          git commit -m "ci: record Mihon test build status [skip ci]" || exit 0
+          git push origin HEAD:fix/mihon-uncaught-exception-interceptor
