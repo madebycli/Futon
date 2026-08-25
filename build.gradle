@@ -8,3 +8,17 @@ plugins {
 //	alias(libs.plugins.decoroutinator) apply false
     alias(libs.plugins.compose.compiler) apply false
 }
+
+// Keiyoushi extensions expect Mihon to provide the OkHttp Brotli/Zstd API classes. The
+// upstream addon artifacts are JVM-only and can create a second OkHttp type world when an
+// Android application also resolves okhttp-android. Keep the decoder implementations, while
+// Futon provides the small API adapters from its own source set against the single Android
+// OkHttp core used by the app.
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute module('com.squareup.okhttp3:okhttp-brotli') using module('org.brotli:dec:0.1.2')
+            substitute module('com.squareup.okhttp3:okhttp-zstd') using module('com.squareup.zstd:zstd-kmp-okio:0.4.0')
+        }
+    }
+}
