@@ -104,12 +104,7 @@ class MihonNetworkHelper(
         // before it applies source-specific configuration. Preserve unrelated Futon network
         // interceptors, but never leak those forbidden defaults into the compatibility client.
         baseClient.networkInterceptors.forEach { interceptor ->
-            if (interceptor.javaClass.simpleName in MIHON_FORBIDDEN_NETWORK_INTERCEPTOR_NAMES) {
-                Log.d(
-                    "MihonNetworkHelper",
-                    "Skipping Keiyoushi-incompatible network interceptor ${interceptor.javaClass.simpleName}",
-                )
-            } else {
+            if (interceptor.javaClass.simpleName !in MIHON_FORBIDDEN_NETWORK_INTERCEPTOR_NAMES) {
                 builder.addNetworkInterceptor(interceptor)
             }
         }
