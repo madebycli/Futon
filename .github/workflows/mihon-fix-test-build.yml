@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/mihon-uncaught-exception-interceptor
+  pull_request:
+    branches:
+      - devel
   workflow_dispatch:
 
 permissions:
@@ -186,6 +189,7 @@ jobs:
           EOF
 
       - name: Commit run status
+        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
