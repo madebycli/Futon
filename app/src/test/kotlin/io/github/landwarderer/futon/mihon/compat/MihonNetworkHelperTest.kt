@@ -36,14 +36,34 @@ class MihonNetworkHelperTest {
     }
 
     @Test
-    fun hostRuntimeInitializesOkHttpBrotliClass() {
-        val brotliClass = Class.forName(
-            "okhttp3.brotli.BrotliInterceptor",
-            true,
-            MihonNetworkHelperTest::class.java.classLoader,
+    fun hostRuntimeInitializesOkHttpCompressionClasses() {
+        val loader = MihonNetworkHelperTest::class.java.classLoader
+        val algorithmClass = Class.forName(
+            "okhttp3.CompressionInterceptor\$DecompressionAlgorithm",
+            false,
+            loader,
         )
 
-        assertEquals("okhttp3.brotli.BrotliInterceptor", brotliClass.name)
+        val brotliAlgorithmClass = Class.forName(
+            "okhttp3.brotli.Brotli",
+            true,
+            loader,
+        )
+        assertTrue(algorithmClass.isAssignableFrom(brotliAlgorithmClass))
+
+        val brotliInterceptorClass = Class.forName(
+            "okhttp3.brotli.BrotliInterceptor",
+            true,
+            loader,
+        )
+        assertEquals("okhttp3.brotli.BrotliInterceptor", brotliInterceptorClass.name)
+
+        val zstdAlgorithmClass = Class.forName(
+            "okhttp3.zstd.Zstd",
+            true,
+            loader,
+        )
+        assertTrue(algorithmClass.isAssignableFrom(zstdAlgorithmClass))
     }
 
     @Test
