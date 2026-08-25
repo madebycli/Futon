@@ -1,11 +1,13 @@
 package io.github.landwarderer.futon.mihon.compat
 
+import android.os.Looper
 import android.util.Log
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import io.github.landwarderer.futon.core.exceptions.CloudFlareBlockedException
+import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.exceptions.InteractiveActionRequiredException
 import io.github.landwarderer.futon.core.network.CloudFlareInterceptor as FutonCloudFlareInterceptor
 import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
@@ -13,8 +15,10 @@ import io.github.landwarderer.futon.mihon.model.toMangaSource
 import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
 import io.github.landwarderer.futon.mihon.parsers.network.CloudFlareHelper
 import io.github.landwarderer.futon.mihon.parsers.network.UserAgents
+import kotlinx.coroutines.runBlocking
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -72,7 +76,16 @@ class MihonNetworkHelper(
         // wrapper first so unchecked failures from extensions become ordinary IO failures.
         builder.addInterceptor(UncaughtExceptionInterceptor())
         builder.addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
-        builder.addInterceptor(CloudflareInterceptor())
+
+        // Keiyoushi requires an interceptor with this exact class name in position three.
+        // Do not use Futon's throwing delegate here: it would abort the chain before the
+        // Mihon-specific resolver below can run. The real Cloudflare detection/resolve/retry
+        // remains in this helper while this wrapper satisfies the upstream client contract.
+        builder.addInterceptor(
+            CloudflareInterceptor(
+                delegate = Interceptor { chain -> chain.proceed(chain.request()) },
+            ),
+        )
 
         // Copy app interceptors while excluding handlers replaced by the compatibility chain.
         baseClient.interceptors.forEach { interceptor ->
@@ -82,9 +95,10 @@ class MihonNetworkHelper(
                 }
 
                 interceptor is FutonCloudFlareInterceptor -> {
-                    // CloudflareInterceptor above delegates to Futon's implementation while
-                    // exposing the exact Mihon class name expected by Keiyoushi.
-                    Log.d("MihonNetworkHelper", "Replacing Futon CloudFlareInterceptor with Mihon-compatible wrapper")
+                    Log.d(
+                        "MihonNetworkHelper",
+                        "Replacing Futon CloudFlareInterceptor with Mihon WebView resolver",
+                    )
                 }
 
                 interceptor.javaClass.simpleName in MIHON_COMPAT_INTERCEPTOR_NAMES -> {
@@ -109,14 +123,18 @@ class MihonNetworkHelper(
             }
         }
 
-        // Add a Mihon-specific fallback detector.
-        // Some Mihon sources build their own clients from network.cloudflareClient, and in practice
-        // the copied base interceptor chain is not always enough to surface App's CF flow.
+        // Mihon/Keiyoushi Cloudflare resolver.
+        //
+        // Usagi's working flow is intentionally preserved here: do not proxy browser resource
+        // requests through OkHttp. Let Chromium execute the managed challenge, wait until the
+        // shared Android CookieManager exposes a fresh cf_clearance cookie, then retry the
+        // original extension request through the same OkHttp interceptor chain.
         builder.addInterceptor { chain ->
             val originalRequest = chain.request()
             val request = enrichApiRequestHeadersIfNeeded(originalRequest)
             val response = chain.proceed(request)
             val challengeUrl = request.toChallengeUrl()
+
             when (CloudFlareHelper.checkResponseForProtection(response)) {
                 CloudFlareHelper.PROTECTION_BLOCKED -> response.closeThrowing(
                     CloudFlareBlockedException(
@@ -127,52 +145,60 @@ class MihonNetworkHelper(
 
                 CloudFlareHelper.PROTECTION_CAPTCHA -> {
                     val host = request.url.host.lowercase()
-                    val clearance = cookieJar.loadForRequest(request.url)
-                        .firstOrNull { it.name == "cf_clearance" }
-                        ?.value
+                    val previousClearance = getClearanceCookie(request)
 
-                    tryFetchWithWebView(request)?.let { browserResponse ->
-                        val browserProtection = CloudFlareHelper.checkResponseForProtection(browserResponse)
-                        if (browserProtection == CloudFlareHelper.PROTECTION_NOT_DETECTED) {
-                            Log.i(
-                                "MihonNetwork",
-                                "WebView fallback succeeded for host=$host, status=${browserResponse.code}",
-                            )
-                            response.close()
-                            return@addInterceptor browserResponse
-                        }
-                        Log.w(
-                            "MihonNetwork",
-                            "WebView fallback still protected for host=$host, status=${browserResponse.code}",
-                        )
-                        browserResponse.close()
-                    }
+                    if (tryResolveWithWebView(request, challengeUrl)) {
+                        // The WebView and OkHttp clients share Android's CookieManager. Close the
+                        // challenge response before proceeding a second time through this
+                        // application interceptor, as required by OkHttp.
+                        response.close()
 
-                    if (shouldSkipInteractiveAction(host, clearance)) {
-                        Log.w(
+                        val retryRequest = enrichApiRequestHeadersIfNeeded(originalRequest)
+                        val retryClearance = getClearanceCookie(retryRequest)
+                        Log.i(
                             "MihonNetwork",
-                            "Skip interactive action for host=$host: repeated challenge with same cf_clearance",
+                            "Cloudflare WebView solved host=$host, clearanceChanged=${retryClearance != null && retryClearance != previousClearance}; retrying source request",
                         )
-                        response.closeThrowing(
-                            CloudFlareBlockedException(
-                                url = challengeUrl,
-                                source = request.tag(ContentSource::class.java),
-                            ),
-                        )
-                    } else {
-                        val source = request.tag(ContentSource::class.java)
-                        if (source == null) {
-                            Log.w("MihonNetwork", "Missing ContentSource tag for host=$host")
-                            response.closeThrowing(CloudFlareBlockedException(url = challengeUrl, source = null))
-                        } else {
-                            response.closeThrowing(
-                                InteractiveActionRequiredException(
-                                    source = source.toMangaSource(),
+
+                        val retryResponse = chain.proceed(retryRequest)
+                        when (CloudFlareHelper.checkResponseForProtection(retryResponse)) {
+                            CloudFlareHelper.PROTECTION_NOT_DETECTED -> {
+                                recentChallengeAttempts.remove(host)
+                                Log.i(
+                                    "MihonNetwork",
+                                    "Cloudflare retry succeeded host=$host status=${retryResponse.code}",
+                                )
+                                return@addInterceptor retryResponse
+                            }
+
+                            CloudFlareHelper.PROTECTION_BLOCKED -> retryResponse.closeThrowing(
+                                CloudFlareBlockedException(
                                     url = challengeUrl,
+                                    source = retryRequest.tag(ContentSource::class.java) as MangaSource?,
                                 ),
                             )
+
+                            else -> {
+                                Log.w(
+                                    "MihonNetwork",
+                                    "Cloudflare retry still protected host=$host status=${retryResponse.code}",
+                                )
+                                throwUnresolvedChallenge(
+                                    response = retryResponse,
+                                    request = retryRequest,
+                                    challengeUrl = challengeUrl,
+                                    host = host,
+                                )
+                            }
                         }
                     }
+
+                    throwUnresolvedChallenge(
+                        response = response,
+                        request = request,
+                        challengeUrl = challengeUrl,
+                        host = host,
+                    )
                 }
 
                 else -> response
@@ -306,30 +332,86 @@ class MihonNetworkHelper(
         return if (modified) builder.build() else request
     }
 
+    private fun getClearanceCookie(request: Request): String? =
+        cookieJar.loadForRequest(request.url)
+            .firstOrNull { it.name == "cf_clearance" }
+            ?.value
+
+    private fun tryResolveWithWebView(request: Request, challengeUrl: String): Boolean {
+        val executor = webViewExecutor ?: run {
+            Log.w("MihonNetwork", "Cloudflare WebView resolver unavailable: WebViewExecutor is null")
+            return false
+        }
+
+        // WebViewExecutor switches to Dispatchers.Main.immediate. Blocking Android's main thread
+        // here would deadlock, so only perform the synchronous bridge from OkHttp worker threads.
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Log.w("MihonNetwork", "Cloudflare automatic solve skipped on main thread")
+            return false
+        }
+
+        val exception = CloudFlareProtectedException(
+            url = challengeUrl,
+            source = null,
+            headers = request.headers,
+        )
+
+        return runCatching {
+            runBlocking {
+                executor.tryResolveCaptcha(exception, CLOUDFLARE_RESOLVE_TIMEOUT_MS)
+            }
+        }.onFailure {
+            Log.w("MihonNetwork", "Cloudflare WebView resolver failed for ${request.url.host}", it)
+        }.getOrDefault(false)
+    }
+
+    private fun throwUnresolvedChallenge(
+        response: Response,
+        request: Request,
+        challengeUrl: String,
+        host: String,
+    ): Nothing {
+        val clearance = getClearanceCookie(request)
+
+        if (shouldSkipInteractiveAction(host, clearance)) {
+            Log.w(
+                "MihonNetwork",
+                "Skip interactive action for host=$host: repeated challenge with same cf_clearance",
+            )
+            response.closeThrowing(
+                CloudFlareBlockedException(
+                    url = challengeUrl,
+                    source = request.tag(ContentSource::class.java),
+                ),
+            )
+        }
+
+        val source = request.tag(ContentSource::class.java)
+        if (source == null) {
+            Log.w(
+                "MihonNetwork",
+                "Cloudflare challenge unresolved for host=$host and request has no ContentSource tag",
+            )
+            response.closeThrowing(
+                CloudFlareProtectedException(
+                    url = challengeUrl,
+                    source = null,
+                    headers = request.headers,
+                ),
+            )
+        }
+
+        response.closeThrowing(
+            InteractiveActionRequiredException(
+                source = source.toMangaSource(),
+                url = challengeUrl,
+            ),
+        )
+    }
+
     private fun maskCookieValue(value: String?): String {
         if (value.isNullOrEmpty()) return "<empty>"
         return if (value.length <= 8) "***" else "${value.take(4)}...${value.takeLast(4)}"
-    }
-
-    private fun tryFetchWithWebView(request: Request): Response? {
-        if (request.method != "GET") {
-            Log.d("MihonNetwork", "WebView fallback skipped: non-GET ${request.method}")
-            return null
-        }
-        val executor = webViewExecutor
-        if (executor == null) {
-            Log.w("MihonNetwork", "WebView fallback skipped: WebViewExecutor is null")
-            return null
-        }
-        val cookies = cookieJar.loadForRequest(request.url)
-        val hasCfClearance = cookies.any { it.name == "cf_clearance" }
-        if (!hasCfClearance) {
-            Log.d("MihonNetwork", "WebView fallback skipped: no cf_clearance for host=${request.url.host}")
-            return null
-        }
-
-        Log.i("MihonNetwork", "WebView fallback is disabled due to missing implementation for WebViewExecutor.fetchWithBrowserContext")
-        return null
     }
 
     private fun shouldSkipInteractiveAction(host: String, clearance: String?): Boolean {
@@ -359,6 +441,7 @@ class MihonNetworkHelper(
     )
 
     companion object {
+        private const val CLOUDFLARE_RESOLVE_TIMEOUT_MS = 20_000L
         private const val INTERACTIVE_RETRY_WINDOW_MS = 10 * 60 * 1000L
         private val recentChallengeAttempts = ConcurrentHashMap<String, ChallengeAttempt>()
         private val MIHON_COMPAT_INTERCEPTOR_NAMES = setOf(
