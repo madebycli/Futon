@@ -2,6 +2,10 @@ package io.github.landwarderer.futon.mihon.compat
 
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
+import eu.kanade.tachiyomi.source.model.SManga
+import io.github.landwarderer.futon.core.network.webview.CaptchaContinuationClient
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.CookieJar
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -11,6 +15,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -64,6 +69,50 @@ class MihonNetworkHelperTest {
             loader,
         )
         assertTrue(algorithmClass.isAssignableFrom(zstdAlgorithmClass))
+    }
+
+    @Test
+    fun hostSMangaProvidesTachiyomix16MemoApi() {
+        val manga = SManga.create()
+        val memo = JsonObject(mapOf("source-key" to JsonPrimitive("value")))
+
+        manga.memo = memo
+
+        assertEquals(memo, manga.memo)
+        val setter = SManga::class.java.getMethod("setMemo", JsonObject::class.java)
+        val getter = SManga::class.java.getMethod("getMemo")
+        assertEquals(Void.TYPE, setter.returnType)
+        assertEquals(JsonObject::class.java, getter.returnType)
+    }
+
+    @Test
+    fun hostSerializationProvidesGeneratedSerializerTypeParametersApi() {
+        val generatedSerializer = Class.forName(
+            "kotlinx.serialization.internal.GeneratedSerializer",
+            false,
+            MihonNetworkHelperTest::class.java.classLoader,
+        )
+
+        val method = generatedSerializer.methods.firstOrNull {
+            it.name == "typeParametersSerializers" && it.parameterCount == 0
+        }
+
+        assertNotNull(
+            "Current Keiyoushi serializers require GeneratedSerializer.typeParametersSerializers()",
+            method,
+        )
+    }
+
+    @Test
+    fun cloudflareWebViewClientDoesNotProxyBrowserRequestsThroughOkHttp() {
+        val declaredMethodNames = CaptchaContinuationClient::class.java.declaredMethods
+            .map { it.name }
+            .toSet()
+
+        assertFalse(
+            "Cloudflare WebView must keep Chromium networking like Usagi; do not override shouldInterceptRequest",
+            declaredMethodNames.contains("shouldInterceptRequest"),
+        )
     }
 
     @Test
