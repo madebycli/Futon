@@ -43,12 +43,25 @@ jobs:
           --no-build-cache
           --no-configuration-cache
 
-      - name: Run release lint
+      - name: Run release lint (diagnostic)
+        id: release_lint
+        continue-on-error: true
         run: >-
           ./gradlew lintRelease
           --stacktrace
           --no-build-cache
           --no-configuration-cache
+
+      - name: Upload release lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Futon-Mihon-Fix-Lint-Report
+          path: |
+            app/build/reports/lint-results-release.*
+            app/build/intermediates/lint_intermediate_text_report/release/**/lint-results-release.txt
+          if-no-files-found: warn
+          retention-days: 7
 
   signed-release:
     name: Build signed optimized test APK
@@ -84,6 +97,9 @@ jobs:
              [ -n "$REPO_KEY_PASSWORD" ]; then
             printf '%s' "$REPO_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
             test -s "$KEYSTORE"
+            echo "::add-mask::$REPO_KEYSTORE_PASSWORD"
+            echo "::add-mask::$REPO_KEY_ALIAS"
+            echo "::add-mask::$REPO_KEY_PASSWORD"
             echo "KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
             echo "KEYSTORE_PASSWORD=$REPO_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
             echo "KEY_ALIAS=$REPO_KEY_ALIAS" >> "$GITHUB_ENV"
@@ -91,8 +107,9 @@ jobs:
             echo "SIGNING_KIND=repository-release-key" >> "$GITHUB_ENV"
             echo "Using repository release signing key."
           else
-            TEMP_PASSWORD="futon-mihon-test-90802"
+            TEMP_PASSWORD="$(openssl rand -hex 32)"
             TEMP_ALIAS="futon-mihon-test"
+            echo "::add-mask::$TEMP_PASSWORD"
             keytool -genkeypair \
               -keystore "$KEYSTORE" \
               -storepass "$TEMP_PASSWORD" \
@@ -145,6 +162,7 @@ jobs:
           {
             echo "Build: optimized release (R8 minify + resource shrinking)"
             echo "Version: 9.8.1-mihon-fix-test (90802)"
+            echo "Source commit: $GITHUB_SHA"
             echo "Signing: $SIGNING_KIND"
             if [ "$SIGNING_KIND" = "temporary-test-key" ]; then
               echo "Install note: this temporary signature cannot update an APK signed with a different key."
@@ -175,10 +193,11 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout fix branch
+      - name: Checkout tested source commit
         uses: actions/checkout@v4
         with:
-          ref: fix/mihon-uncaught-exception-interceptor
+          ref: ${{ github.sha }}
+          fetch-depth: 0
 
       - name: Write run status
         env:
@@ -202,8 +221,14 @@ jobs:
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
+          BRANCH="fix/mihon-uncaught-exception-interceptor"
+          REMOTE_SHA="$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')"
+          if [ "$REMOTE_SHA" != "$GITHUB_SHA" ]; then
+            echo "Branch advanced from tested source $GITHUB_SHA to $REMOTE_SHA; skipping stale status commit."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .ci/mihon-fix-latest.json
           git commit -m "ci: record Mihon test build status [skip ci]" || exit 0
-          git push origin HEAD:fix/mihon-uncaught-exception-interceptor
+          git push origin HEAD:"$BRANCH"
