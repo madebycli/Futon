@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.source
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import rx.Observable
 
 /**
@@ -23,6 +24,28 @@ interface Source {
 
     val lang: String
         get() = ""
+
+    /**
+     * Fetch a combined manga/chapter update.
+     *
+     * extensions-lib 1.6 sources can override this directly to coordinate details and chapter
+     * requests. Older extensions inherit this default implementation, which preserves the
+     * pre-1.6 behavior by delegating to the separate detail/chapter APIs.
+     */
+    suspend fun getMangaUpdate(
+        manga: SManga,
+        chapters: List<SChapter>,
+        fetchDetails: Boolean,
+        fetchChapters: Boolean,
+    ): SMangaUpdate {
+        require(fetchDetails || fetchChapters) {
+            "getMangaUpdate called with nothing to fetch (fetchDetails=false, fetchChapters=false)"
+        }
+
+        val updatedManga = if (fetchDetails) getMangaDetails(manga) else manga
+        val updatedChapters = if (fetchChapters) getChapterList(manga) else chapters
+        return SMangaUpdate(updatedManga, updatedChapters)
+    }
 
     /**
      * Get the updated details for a manga.
