@@ -42,6 +42,8 @@ jobs:
           # re-enables D8 interface desugaring and breaks serializers loaded later from extension APKs.
           grep -Eq '^[[:space:]]*minSdk = 26$' app/build.gradle
           ./gradlew testDebugUnitTest \
+            --tests "io.github.landwarderer.futon.mihon.ExtensionRepoServiceTest" \
+            --tests "io.github.landwarderer.futon.mihon.TachiyomiApkClassLoaderPolicyTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonModernHostContractTest" \
