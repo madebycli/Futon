@@ -45,6 +45,7 @@ jobs:
             --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonModernHostContractTest" \
+            --tests "io.github.landwarderer.futon.core.network.GitHubRawUrlCompatTest" \
             --stacktrace \
             --no-build-cache \
             --no-configuration-cache
@@ -142,10 +143,26 @@ jobs:
         run: >-
           ./gradlew assembleRelease
           -PversionName=9.8.1-mihon-fix-test
-          -PversionCode=90802
+          -PversionCode=90803
           --stacktrace
           --no-build-cache
           --no-configuration-cache
+
+      - name: Verify optimized Mihon runtime ABI
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          rm -rf "$RUNNER_TEMP/futon-dex"
+          mkdir -p "$RUNNER_TEMP/futon-dex"
+          unzip -q "$APK" 'classes*.dex' -d "$RUNNER_TEMP/futon-dex"
+          cat "$RUNNER_TEMP"/futon-dex/classes*.dex | strings > "$RUNNER_TEMP/futon-dex/strings.txt"
+          # zstd-kmp resolves ZstdCompressor from JNI FindClass. A source-level reference is not enough:
+          # the exact class must survive R8 in the optimized APK.
+          grep -Fq 'com/squareup/zstd/ZstdCompressor' "$RUNNER_TEMP/futon-dex/strings.txt"
+          # ConfigurableSource preference UI is invoked by dynamically loaded extension APKs.
+          grep -Fq 'androidx/preference/PreferenceScreen' "$RUNNER_TEMP/futon-dex/strings.txt"
+          grep -Fq 'eu/kanade/tachiyomi/source/ConfigurableSource' "$RUNNER_TEMP/futon-dex/strings.txt"
 
       - name: Verify APK signature
         run: |
@@ -167,7 +184,7 @@ jobs:
           sha256sum "$APK_NAME" > "$APK_NAME.sha256"
           {
             echo "Build: optimized release (R8 minify + resource shrinking)"
-            echo "Version: 9.8.1-mihon-fix-test (90802)"
+            echo "Version: 9.8.1-mihon-fix-test (90803)"
             echo "Source commit: $GITHUB_SHA"
             echo "Signing: $SIGNING_KIND"
             if [ "$SIGNING_KIND" = "temporary-test-key" ]; then
