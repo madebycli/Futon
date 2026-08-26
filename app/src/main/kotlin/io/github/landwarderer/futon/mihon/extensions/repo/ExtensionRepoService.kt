@@ -334,7 +334,8 @@ class ExtensionRepoService @Inject constructor(
             name.startsWith("Outdated App", ignoreCase = true) || name.contains("Update to Mihon", ignoreCase = true)
         ) return null
 
-        val libVersion = version.substringBeforeLast('.', version).toDoubleOrNull()
+        val libVersion = version.toDoubleOrNull()
+            ?: version.substringBeforeLast('.').toDoubleOrNull()
             ?: if (repo.type == ExternalExtensionType.IREADER) 0.0 else return null
         val supported = when (repo.type) {
             ExternalExtensionType.MIHON -> libVersion in MihonExtensionLoader.LIB_VERSION_MIN..MihonExtensionLoader.LIB_VERSION_MAX

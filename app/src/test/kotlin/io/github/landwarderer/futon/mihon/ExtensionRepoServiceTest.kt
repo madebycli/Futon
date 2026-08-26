@@ -283,9 +283,9 @@ class ExtensionRepoServiceTest {
         val base = service.baseUrlFromIndexUrl(normalized!!)
         assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo", base)
 
-        // Test GitHub raw URL normalization
+        // Test GitHub raw URL normalization while preserving the protobuf store index.
         val ghRaw = service.normalizeIndexUrl("https://github.com/keiyoushi/extensions/raw/repo/index.pb")
-        assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json", ghRaw)
+        assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.pb", ghRaw)
 
         val ghTree = service.normalizeIndexUrl("https://github.com/keiyoushi/extensions/tree/repo")
         assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json", ghTree)
