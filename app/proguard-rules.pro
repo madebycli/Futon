@@ -65,6 +65,24 @@
 -keep class kotlinx.coroutines.** { *; }
 -keeppackagenames okhttp3.**, okio.**, org.jsoup.**, rx.**, kotlinx.serialization.**, kotlin.**, kotlinx.coroutines.**
 
+# zstd-kmp resolves these classes from native code via JNI FindClass.
+# Ported from Kototoro's Mihon runtime rules. R8 cannot infer the native-only reachability.
+-keep class com.squareup.zstd.** { *; }
+-keep interface com.squareup.zstd.** { *; }
+
+# AndroidX Preference is part of ConfigurableSource's externally invoked ABI.
+# Extension APKs construct preference classes and call members the host may not reference directly.
+-keep class androidx.preference.** { *; }
+-keep interface androidx.preference.** { *; }
+-keepclassmembers class androidx.preference.** {
+    public <init>(...);
+    public protected *;
+}
+
+# SharedPreferences is used by ConfigurableSource and extension preference screens.
+-keep class android.content.SharedPreferences { *; }
+-keep interface android.content.SharedPreferences$** { *; }
+
 # Keep Kotlin standard library facades and internal classes often used by extensions
 -keep class kotlin.LazyKt** { *; }
 -keep class kotlin.collections.CollectionsKt** { *; }
