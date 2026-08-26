@@ -7,118 +7,151 @@ Last manually refreshed: 2026-08-26
 - Repository: `madebycli/Futon`
 - Working branch: `fix/mihon-uncaught-exception-interceptor`
 - Base branch: `devel`
-- Draft PR: #1 — `Fix Keiyoushi/Mihon default network interceptor compatibility`
-- Live-observed branch head before this context refresh: `b183ae48d0bde850509bab7f96b4786c54975f3f`
-- Last meaningful source-change head: `d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32`
-- `b183ae48...` is context-only and descends from the prior CI-status/context commits; the meaningful app source remains `d5e10a1...`.
-- App version under test: Futon `9.8.1`
-- Debug application id: `io.github.landwarderer.futon.debug`
-- Host baseline now matches current Mihon/Keiyoushi: `minSdk = 26`.
+- Draft PR: #1, `Fix Keiyoushi/Mihon default network interceptor compatibility`
+- Live-observed branch head before the final context refresh: `3d7beb7500836e0495e48a658612a7f4ee0d21d1` (CI-status-only commit)
+- Last meaningful app/source head: `157d94e249e2cc06b86b2088f9616802575efa5f`
+- PR #1 is open, `draft: true`, unmerged, base `devel`.
+- App test version: `9.8.1-mihon-fix-test` (`90802`)
+- Host baseline: `minSdk = 26`.
 
-Always re-fetch these values before work because context-refresh commits advance the branch head.
+Always re-fetch live values before new work. Context/status commits use `[skip ci]` and may advance the branch while `157d94e...` remains the meaningful app source until another app-code change is made.
 
-## Live verification, 2026-08-26
+## Final CI / APK validation for source 157d94e
 
-- PR #1 is still open and `draft: true`, base `devel`, head branch `fix/mihon-uncaught-exception-interceptor`.
-- Futon live head observed before this context refresh: `b183ae48d0bde850509bab7f96b4786c54975f3f`.
-- Current Kototoro `devel` head remains `e036c5940af6b849c055ab46d73c0ec4896276f7` (v2.0.3).
-- Current Keiyoushi `extensions-lib` main head is `18a8e26be2320b48bdaa11840170479b62989e23`.
-- No post-`d5e10a1` device result has been supplied yet, so `POST_D5_DEVICE_VALIDATION` remains the highest-priority unresolved node.
-- Current Kototoro Mihon `ChildFirstPathClassLoader` delegates parent-owned ABI classes through `ChildFirstClassLoaderPolicy`, which is a legacy alias for the shared `TachiyomiApkClassLoaderPolicy`.
-- The shared Kototoro policy explicitly parent-loads Java/Kotlin/Android, coroutines, OkHttp/Okio, Rx, Tachiyomi source/network/util APIs, Injekt and related host ABI namespaces, while `$-CC` and `$DefaultImpls` bridge artifacts remain child-first.
-- Futon's current `ChildFirstPathClassLoader` still uses generic system -> child -> parent loading and does not encode this ABI ownership policy.
-- Direct source comparison at Kototoro `e036c594...` and Futon source `d5e10a1...` re-confirms that Kototoro's policy is the stronger generic design for class-identity/ABI failures.
-- Decision for this round: do not port the policy without fresh post-`d5e10a1` device evidence. If the next log contains `AbstractMethodError`, `NoSuchMethodError`, `IncompatibleClassChangeError`, `ClassCastException`, `VerifyError`, duplicate host/extension ABI classes, or classloader-specific `ClassNotFoundException`, port Kototoro's shared policy and Mihon loader behavior preferentially instead of adding one-off exceptions.
+Source SHA: `157d94e249e2cc06b86b2088f9616802575efa5f`
 
-## Latest CI state
+- Debug workflow: run `32968537762`, `success`.
+- Debug artifact: `debug-apk`, artifact id `9606868918`.
+- Dedicated Mihon workflow: run `32968537828`, `success`.
+- Focused Mihon regression tests: `success`.
+- Release lint diagnostic: `success`.
+- Optimized R8 release build: `success`.
+- APK signature verification (`apksigner verify --verbose --print-certs`): `success`.
+- Signed artifact upload: `success`.
+- Signed artifact: `Futon-Mihon-Fix-Signed-Release`, artifact id `9607335889`.
+- Signed APK SHA-256: `d4de82bd6bb22d1bafb6f3860cf0e9ed6566aa2af0ad2b65a69d813172c038aa`.
+- Artifact ZIP SHA-256: `0e7b509ca3bf04d62ffa274e0d47b3427f7f1478c6110a4994184cf25fcfc7fa`.
+- Signing kind reported by the workflow: `temporary-test-key`. This APK cannot update an installation signed by a different key; uninstall/reinstall may be required.
+- `BUILD-INFO.txt` records synthetic PR merge SHA `3890a58a607ed0c2fde692e2e3d65cca85e7e92a` because the workflow ran on `pull_request`; the Actions artifact metadata correctly identifies branch source head `157d94e...`.
 
-`.ci/mihon-fix-latest.json` records:
+Local extraction of the final optimized APK confirmed its recorded SHA-256 exactly. Direct DEX inspection of the optimized APK confirmed the packaged presence of all checked runtime/ABI symbols:
 
-- tested source SHA: `d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32`
-- dedicated run: `32948732345`
-- focused Mihon verification: `success`
-- signed optimized release test build: `success`
+- `okhttp3/brotli/BrotliInterceptor`
+- `okhttp3/zstd/Zstd`
+- `eu/kanade/tachiyomi/source/model/SMangaUpdate`
+- `getMangaUpdate`
+- `io/github/landwarderer/futon/mihon/compat/MihonNetworkHelper`
+- `eu/kanade/tachiyomi/source/online/HttpSource`
+- `cloudflareClient`
+- `overridesFetchWithoutRequestHelper`
+- `newCachelessCallWithProgress`
+- `typeParametersSerializers`
+- `TachiyomiApkClassLoaderPolicy`
 
-Live Actions verification confirms run `32948732345` completed successfully for `d5e10a1...`. The full debug build for the same source head succeeded in workflow run `32948738540`. Context-only commits intentionally use `[skip ci]`.
+`.ci/mihon-fix-latest.json` now records run `32968537828`, source `157d94e...`, verification `success`, signed release `success`.
 
-## Historical device evidence before d5e10a1
+## Current upstream references
 
-Status: `historical`, retained for root-cause history.
-
-1. Extensions could be discovered and instantiated: five installed Mihon extensions loaded successfully, with dozens of sources available.
-2. The original Keiyoushi default-client failure (`UncaughtExceptionInterceptor must be present in default client`) was fixed.
-3. A second failure exposed a missing host runtime class: `okhttp3.brotli.BrotliInterceptor`. Futon now packages the official OkHttp Brotli module.
-4. Zstd host runtime support was also aligned with the modern Mihon/Keiyoushi environment.
-5. The Usagi/Kototoro-style Cloudflare WebView solve was verified on-device: a changed `cf_clearance` was obtained, the original Comix request was retried, and HTTP 200 was returned. The current Cloudflare solve path is therefore device-proven.
-6. After Cloudflare succeeded, Comix, MangaDot.net, and Manga Ball exposed repeated `GeneratedSerializer.typeParametersSerializers()` `AbstractMethodError` failures.
-7. Root cause was Futon's old `minSdk = 23`, which allowed Android interface desugaring to create a host ABI incompatible with dynamically loaded serializer implementations. Current Mihon and Keiyoushi use API 26. Futon was raised to `minSdk = 26` and a regression gate was added.
-8. Weeb Central exposed `UnsupportedOperationException` because current Keiyoushi sources use the extensions-lib/TachiyomiX 1.6 combined `getMangaUpdate(...)` path while Futon still called legacy details/chapter paths. Futon now exposes `SMangaUpdate` and `Source.getMangaUpdate(...)`, with legacy fallback, and `MihonMangaRepository` uses the combined API.
-9. `SManga.memo` compatibility was added for newer extension ABI expectations.
-
-No post-`d5e10a1` on-device result is recorded yet. A green unit/CI result must not override a future real device failure.
-
-## Compatibility work already implemented
-
-### Network host contract
-
-- Mihon-compatible `UncaughtExceptionInterceptor`.
-- Mihon-compatible `UserAgentInterceptor`.
-- Mihon-compatible `CloudflareInterceptor` delegating to Futon's host behavior.
-- Required default-interceptor ordering preserved.
-- Legacy/incompatible compression network interceptors filtered.
-- Unrelated compatible host interceptors preserved.
-- Official OkHttp Brotli runtime added to the host.
-- OkHttp Zstd runtime aligned.
-
-### Cloudflare
-
-- Chromium/WebView owns challenge networking rather than proxying WebView subrequests through a second OkHttp path.
-- Host waits for changed clearance state and retries the original source request.
-- This path is proven on the user's device for Comix with HTTP 200 after solve.
-
-### Source ABI
-
-- `SManga.memo` compatibility.
-- `SMangaUpdate` host model.
-- `Source.getMangaUpdate(manga, chapters, fetchDetails, fetchChapters)` API.
-- Default fallback keeps older extensions working through old details/chapter methods.
-- `MihonMangaRepository` requests combined details + chapter updates for modern sources.
-
-### Android ABI baseline
-
-- `minSdk` raised from 23 to 26 to match modern Mihon/Keiyoushi dynamic-extension ABI assumptions.
-- Regression coverage protects the API-26 baseline.
-
-## Current Kototoro reference
+### Kototoro
 
 - Repository: `Kototoro-app/Kototoro`
-- Reference branch: `devel`
-- Live verified SHA: `e036c5940af6b849c055ab46d73c0ec4896276f7`
-- Version: v2.0.3
-- License: Apache-2.0
+- Branch: `devel`
+- Live verified SHA: `dec0ef781644245f6937dc1cafc8ca84963fe08e`
+- The live-head commit is about Mihon-family backup source remapping, not extension runtime/network/classloader behavior.
+- Current `KotoNetworkHelper.kt` blob remains `fc178e26d9d54fd9e2c4f5ee4ca4dbd529e00c88` at this SHA.
+- Current `TachiyomiApkClassLoaderPolicy.kt` still uses explicit host-owned ABI packages plus child-first `$-CC` / `$DefaultImpls` bridge exceptions.
+- Current `HttpSource.kt` continues the modern suspend API plus legacy `fetch*` override compatibility pattern used as Futon's reference.
 
-Important reference paths:
+### Keiyoushi extensions-lib
 
-- `docs/reference/mihon-integration.md`
-- `app/src/main/kotlin/org/skepsun/kototoro/mihon/compat/KotoNetworkHelper.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/mihon/util/ChildFirstPathClassLoader.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/mihon/util/ChildFirstClassLoaderPolicy.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt`
-- `app/src/main/kotlin/eu/kanade/tachiyomi/source/Source.kt`
-- Kototoro Mihon loader/manager/repository/filter/converter files listed by its integration document.
+- Repository: `keiyoushi/extensions-lib`
+- Branch: `main`
+- Live verified SHA: `18a8e26be2320b48bdaa11840170479b62989e23`
+- This remains the current host-contract reference observed in this round.
 
-## Next device test matrix
+## Compatibility work implemented
 
-Use the newest APK built from or after `d5e10a1` and exercise at least:
+### Default NetworkHelper / compression contract
 
-- Comix: browse/popular, search, manga details, chapters, pages/images.
-- MangaDot.net: browse/search/details/chapters/pages.
-- Manga Ball: browse/search/details/chapters/pages.
-- Weeb Central: especially manga details + chapter loading, then pages.
-- MangaRead.org: repeat the path that previously exercised modern SManga behavior.
+- Required default application-interceptor order remains:
+  1. `UncaughtExceptionInterceptor`
+  2. `UserAgentInterceptor`
+  3. `CloudflareInterceptor`
+- Futon now derives the Mihon client from `baseClient.newBuilder()`, preserving host proxy/TLS/DNS/cache/authenticator/dispatcher/connection/timeouts and rebuilding only interceptor lists.
+- Incompatible host compression interceptors are removed from the modern default Mihon/Keiyoushi client.
+- Legacy/fork-specific interceptor names `GZipInterceptor`, `IgnoreGzipInterceptor`, and `BrotliInterceptor` are filtered as well as the concrete OkHttp Brotli singleton.
+- Compatible unrelated host interceptors are retained.
+- `cloudflareClient` remains a legacy compatibility client with Brotli as a separate network interceptor; current Keiyoushi paths continue using the Brotli-free default client.
+- Zstd is explicitly referenced in the static host graph so dynamically loaded extensions can resolve it.
 
-For every failure, capture full logcat around the first exception and classify by unique root cause rather than counting all warning/error lines.
+### HttpSource modern + legacy compatibility
 
-## Unresolved / next-action node
+- `HttpSource.client` retains legacy Brotli behavior through `NetworkHelper.cloudflareClient`; newer KeiSource implementations may override to the modern default client.
+- Suspend APIs execute direct OkHttp request/parser paths for modern sources.
+- Reflection-based compatibility detects custom legacy `fetch*` overrides and dispatches to them when the corresponding request helper was not/should not be used.
+- `UnsupportedOperationException` fallback preserves legacy custom fetch behavior.
+- `getHomeUrl()` returns `baseUrl`.
+- Image requests use source tagging and cacheless/progress-aware network calls with HTTP success checking.
+- `MihonModernHostContractTest` protects host-client configuration preservation, modern-vs-legacy Brotli separation, home URL, page-list legacy fetch dispatch, and chapter-list legacy override precedence.
 
-`POST_D5_DEVICE_VALIDATION` is unresolved. Do not declare the project fixed until a real post-`d5e10a1` device run confirms the critical source matrix or identifies the next host incompatibility.
+### ClassLoader / ABI ownership
+
+The old context entry saying this port was deferred is now **superseded**. The port is already implemented on the current branch.
+
+- `ChildFirstPathClassLoader` now extends `DexClassLoader`.
+- It consults `ChildFirstClassLoaderPolicy`, which delegates to the shared `TachiyomiApkClassLoaderPolicy`.
+- Host-owned namespaces include Java/Kotlin/Android, coroutines, JSON/Jsoup, OkHttp/Okio, Rx, Tachiyomi source/network/util ABI, Injekt, IReader, Ktor and Fleeksoft.
+- Generated `$-CC` and `$DefaultImpls` bridge classes remain child-first.
+- Regression coverage exists in `TachiyomiApkClassLoaderPolicyTest`.
+- Futon files retain attribution noting they were ported/adapted from Kototoro, Apache-2.0.
+
+### Previously implemented and retained
+
+- `SManga.memo`.
+- `SMangaUpdate`.
+- `Source.getMangaUpdate(...)` with legacy details/chapter fallback.
+- `MihonMangaRepository` combined update path.
+- `minSdk = 26` to avoid host/extension default-method serializer ABI mismatch.
+- Official OkHttp Brotli and Zstd host runtime.
+- Chromium/WebView Cloudflare solve, changed-clearance detection, retry of the original source request.
+- Request/source context propagation and current image/request compatibility support.
+- External extension runtime/metadata/local APK support and the current Tachiyomi ecosystem classifier/runtime structure present on the branch.
+
+## CI regressions encountered while finishing the modern host port
+
+These are historical and resolved, retained so they are not rediscovered as new runtime bugs:
+
+1. Source `76f56492ce07af04bc1f003ca7ff33e92b27ab1d` failed focused verification because the centralized compression filter stopped matching a legacy/fork test interceptor whose class name was `BrotliInterceptor`. The name-based compatibility filter was restored.
+2. Source `86f6acd280fa79591249cebb9dce7a9649f78edd` compiled, but two JVM tests failed with the same root cause: `android.util.Log.d()` was called while constructing/filtering the helper, and plain JVM Android stubs throw `RuntimeException`. The nonessential construction-time skip logs were removed.
+3. Final source `157d94e...` keeps the filtering behavior without those JVM-hostile construction logs and is green in both Debug and Signed workflows.
+
+Do not interpret either red intermediate run as a current app/runtime failure.
+
+## Historical on-device evidence
+
+Status: historical, before the current final APK.
+
+- Five installed Mihon extensions loaded successfully, with dozens of sources.
+- The original `UncaughtExceptionInterceptor must be present in default client` failure was fixed.
+- Missing `okhttp3.brotli.BrotliInterceptor` was observed and fixed.
+- Comix Cloudflare WebView solve was proven on-device: changed `cf_clearance`, retry of original request, HTTP 200.
+- Comix, MangaDot.net and Manga Ball then exposed `GeneratedSerializer.typeParametersSerializers()` `AbstractMethodError`; the root cause was the old `minSdk=23`/interface-desugaring ABI and Futon moved to API 26.
+- Weeb Central exposed the obsolete details/chapter path; Futon added the combined `getMangaUpdate(...)` path.
+
+There is still **no recorded real-device test of the final `157d94e...` APK**. CI and DEX evidence are strong but cannot overrule future device evidence.
+
+## Next decisive validation
+
+`POST_157D_DEVICE_VALIDATION` is the only remaining project-level runtime validation node.
+
+Install the final signed APK and exercise:
+
+- Comix: browse/popular, search, details, chapters, pages/images.
+- MangaDot.net: browse/search/details/chapters/pages/images.
+- Manga Ball: browse/search/details/chapters/pages/images.
+- Weeb Central: especially details + chapters, then pages/images.
+- MangaRead.org: the modern SManga/details/chapters/pages path.
+
+If installation fails because another Futon build is installed, remember this final test APK uses a temporary signing key and cannot update a differently signed installation.
+
+For any failure, capture logcat around the **first real exception** and group repeated lines by unique root cause. Device evidence has priority over all CI results.
