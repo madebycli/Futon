@@ -2,210 +2,200 @@
 
 Du bist die nächste primäre Entwicklungs-KI für das Futon-Mihon/Keiyoushi-Kompatibilitätsprojekt.
 
-## Projekt
+## Projekt und Sicherheitsregeln
 
-- Futon-Fork: `https://github.com/madebycli/Futon`
+- Futon-Fork: `madebycli/Futon`
 - Arbeitsbranch: `fix/mihon-uncaught-exception-interceptor`
 - Draft-PR: #1 gegen `devel`
-- Referenzimplementierung: `https://github.com/Kototoro-app/Kototoro`, Branch `devel`
-- Aktueller Kototoro-Snapshot beim letzten Handoff: `e036c5940af6b849c055ab46d73c0ec4896276f7` (v2.0.3)
+- Niemals mergen oder `devel` direkt verändern, außer der Benutzer verlangt es ausdrücklich.
+- Keine Releases veröffentlichen, außer der Benutzer verlangt es ausdrücklich.
+- Keine Signing-Secrets, Keys, Passwörter oder Tokens ausgeben.
 
-## Zwingender Start
+## Zwingender Start jeder Runde
 
-Bevor du Code änderst:
+Lies zuerst vollständig:
 
-1. Lies vollständig:
-   - `.ai/context/README.md`
-   - `.ai/context/STATE.md`
-   - `.ai/context/graph.yaml`
-   - `.ci/mihon-fix-latest.json`
-2. Hole den AKTUELLEN Branch-Head, PR-Status und CI-Status von GitHub. Verlasse dich nicht auf die im Handoff gespeicherten SHAs.
-3. Hole den AKTUELLEN `devel`-Head von `Kototoro-app/Kototoro`. Wenn sich der SHA geändert hat, aktualisiere `STATE.md` und `graph.yaml` sofort.
-4. Nimm mein neuestes Testergebnis / Log / die von mir genannte APK-Version entgegen und behandle es als höchste Laufzeit-Evidenz.
-5. Zähle nicht jede rote Log-Zeile als eigenen Fehler. Gruppiere nach eindeutiger Root Cause und beginne immer mit der ersten echten Exception im relevanten Source-Pfad.
+1. `.ai/context/README.md`
+2. `.ai/context/STATE.md`
+3. `.ai/context/graph.yaml`
+4. `.ci/mihon-fix-latest.json`
+5. diese Datei
 
-## Deine Hauptaufgabe
+Danach live neu holen:
 
-Prüfe anhand meines jeweils neuesten Gerätetests, ob Futons aktuelle Mihon/Keiyoushi-Implementierung wirklich funktioniert. Vergleiche jeden noch fehlerhaften Teil mit Kototoro und entscheide anhand von Code + Tests + Gerätelog, ob Kototoros Implementierung robuster ist.
+- Branch-Head von `fix/mihon-uncaught-exception-interceptor`
+- PR #1 Status/Head/Base
+- relevante GitHub-Actions-Runs
+- aktuellen `devel`-Head von `Kototoro-app/Kototoro`
+- bei Vertragsfragen aktuellen `keiyoushi/extensions-lib` Head
 
-Vergleiche insbesondere:
+Gespeicherte SHAs niemals ungeprüft als aktuell annehmen.
 
-- Extension Discovery / Loader / Version Gate
-- ChildFirstPathClassLoader
-- Parent-vs-Child ABI Ownership
+## Finaler Stand dieser Runde, 2026-08-26
+
+Letzter bedeutender App-/Source-Head:
+
+`157d94e249e2cc06b86b2088f9616802575efa5f`
+
+Danach folgen nur `[skip ci]` Status-/Kontextcommits, bis wieder App-Code geändert wird.
+
+PR #1 wurde zuletzt live als offen, Draft, ungemergt gegen `devel` verifiziert.
+
+### Finales CI
+
+Für `157d94e...`:
+
+- Debug Build: run `32968537762`, success
+- Signed Mihon Test Build: run `32968537828`, success
+- fokussierte Mihon Regressionen: success
+- Release-Lint: success
+- optimierter R8 Release-Build: success
+- APK-Signaturprüfung: success
+- signed artifact id: `9607335889`
+- APK SHA-256: `d4de82bd6bb22d1bafb6f3860cf0e9ed6566aa2af0ad2b65a69d813172c038aa`
+- Signing: `temporary-test-key`
+
+Wichtig: Der temporäre Test-Key kann keine Installation überschreiben, die mit einem anderen Key signiert wurde. Bei Installationskonflikt kann Deinstallation der alten Testinstallation nötig sein.
+
+Direkte DEX-Prüfung des optimierten APKs bestätigte u. a.:
+
+- `BrotliInterceptor`
+- Zstd
+- `SMangaUpdate`
+- `getMangaUpdate`
+- `MihonNetworkHelper`
+- `HttpSource`
+- `cloudflareClient`
+- Legacy-Fetch-Override-Dispatch
+- cacheless/progress image call
+- `typeParametersSerializers`
 - `TachiyomiApkClassLoaderPolicy`
-- Injekt Bridge
-- NetworkHelper
-- Required Mihon/Keiyoushi Interceptors und Reihenfolge
-- Brotli / Zstd / Compression-Verhalten
-- Cloudflare / WebView / Clearance / Retry
-- Source API 1.4 / 1.5 / 1.6 Kompatibilität
-- `SManga`, `SManga.memo`, `SMangaUpdate`
-- `getMangaUpdate(...)`
-- Legacy-Fallbacks
-- Filter Mapping
-- Repository Adapter
-- Details / Chapters / Pages / Images
-- Request Headers / Referer / User-Agent / Cookies
-- dynamische Serializer-/Kotlin-/Coroutine-/OkHttp-ABI
-- APK/Dex Class Loading
 
-## Kototoro ist die bevorzugte Referenz
+`.ci/mihon-fix-latest.json` ist auf run `32968537828` / source `157d94e...` / success aktualisiert.
 
-Kototoro gilt in diesem Projekt als die primäre Referenzimplementierung für Mihon/Tachiyomi-Kompatibilität, weil es dieselbe App-/Kotatsu-Linie nutzt und eine deutlich vollständigere externe Extension-Laufzeit besitzt.
+## Aktuelle Referenzen
 
-WENN FUTONS EIGENE IMPLEMENTIERUNG WIEDER SCHEITERT UND KOTOTORO DENSELBEN PFAD FUNKTIONIEREND IMPLEMENTIERT:
+Kototoro:
 
-**Dann portiere den relevanten Kototoro-Code so wortgetreu / code-für-code wie praktisch möglich.**
+- Repo: `Kototoro-app/Kototoro`
+- Branch: `devel`
+- zuletzt live: `dec0ef781644245f6937dc1cafc8ca84963fe08e`
+- dieser Head-Commit betrifft Mihon-Fork-Backup-Remapping, nicht die Runtime-/Network-/ClassLoader-Flächen
 
-Das bedeutet:
+Wichtige aktuelle Referenzdateien:
 
-- Keine neue kreative Neuimplementierung, wenn Kototoro bereits einen bewährten Pfad hat.
-- Logik, Reihenfolge, Kontrollfluss, ABI-Signaturen, ClassLoader-Policy, Interceptor-Reihenfolge, Retry-Verhalten und Edge-Case-Behandlung möglichst exakt übernehmen.
-- Nur zwingend notwendige Änderungen für Futon vornehmen:
-  - Package-Namen
-  - Imports
-  - Dependency-Injection-Grenzen
-  - Futon-Modellnamen
-  - bereits vorhandene Host-Komponenten
-  - UI-/Repository-Integrationspunkte
-- Zugehörige Kototoro-Tests ebenfalls portieren oder äquivalente Regressionstests hinzufügen.
-- Nicht einfach nur einen einzelnen Fehlernamen filtern, wenn Kototoro eine generische Policy dafür besitzt.
-- Bei ClassLoader-/ABI-Fehlern zuerst Kototoros `TachiyomiApkClassLoaderPolicy` untersuchen und bevorzugt vollständig übernehmen statt immer neue Sonderfälle zu ergänzen.
-- Kototoro ist Apache-2.0 und Futon GPL-3.0: notwendige Copyright-/NOTICE-/Attributionshinweise erhalten, geänderte übernommene Dateien entsprechend kennzeichnen. Keine Notices entfernen.
+- `app/src/main/kotlin/org/skepsun/kototoro/mihon/compat/KotoNetworkHelper.kt`
+- `app/src/main/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt`
+- `app/src/main/kotlin/org/skepsun/kototoro/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt`
 
-## Bereits erledigte Arbeit
+Keiyoushi extensions-lib:
 
-Die aktuelle Branch enthält bereits u. a.:
+- `keiyoushi/extensions-lib`
+- `main`
+- zuletzt live `18a8e26be2320b48bdaa11840170479b62989e23`
 
-- Mihon-kompatiblen `UncaughtExceptionInterceptor`
-- `UserAgentInterceptor`
-- `CloudflareInterceptor`
-- Filterung inkompatibler Legacy-Compression-Network-Interceptors
-- offiziellen OkHttp-Brotli-Host-Runtime-Support
-- Zstd-Host-Runtime-Support
-- Usagi/Kototoro-artigen Cloudflare-WebView-Solve + Retry des Originalrequests
+## Was im aktuellen Futon bereits implementiert ist
+
+### NetworkHelper
+
+- `UncaughtExceptionInterceptor` zuerst
+- `UserAgentInterceptor` zweitens
+- `CloudflareInterceptor` drittens
+- Mihon-Client wird aus `baseClient.newBuilder()` abgeleitet, dadurch bleiben Proxy/TLS/DNS/cache/authenticator/dispatcher/timeouts usw. erhalten
+- nur Interceptor-Listen werden neu aufgebaut
+- inkompatible Legacy-Compression-Interceptors werden entfernt
+- kompatible Host-Interceptors bleiben erhalten
+- konkrete und namensbasierte Brotli-Filterung für Fork-/Legacy-Kompatibilität
+- moderner Default-Client ohne Brotli-Network-Interceptor
+- Legacy-`cloudflareClient` separat mit Brotli
+- Zstd statisch im Host-Graph verankert
+
+### HttpSource
+
+- moderner suspend-Pfad direkt über OkHttp
+- Legacy-Rx-`fetch*` Overrides werden per Reflection erkannt und bei Bedarf bevorzugt
+- `UnsupportedOperationException` Fallback für Custom-Legacy-Fetch
+- `getHomeUrl() = baseUrl`
+- Legacy-HttpSource bekommt Brotli über `cloudflareClient`
+- Image-Requests mit Source-Tag, cacheless/progress Call und HTTP-Success-Check
+- Regressionen in `MihonModernHostContractTest`
+
+### ClassLoader
+
+Der alte Handoff-Hinweis „ClassLoader-Port deferred“ ist **veraltet und superseded**.
+
+Aktuell ist Kototoros generische ABI-Policy bereits portiert:
+
+- Futon `ChildFirstPathClassLoader` nutzt `DexClassLoader`
+- Host-/Parent-owned: Java/Kotlin/Android, Coroutines, JSON/Jsoup, OkHttp/Okio, Rx, Tachiyomi source/network/util ABI, Injekt, IReader, Ktor, Fleeksoft
+- `$-CC` und `$DefaultImpls` bleiben child-first
+- Regressionstest: `TachiyomiApkClassLoaderPolicyTest`
+
+Bei neuen `AbstractMethodError`, `NoSuchMethodError`, `IncompatibleClassChangeError`, `ClassCastException`, `VerifyError` oder ClassLoader-`ClassNotFoundException` zuerst prüfen, ob die **bereits portierte** Policy vom aktuellen Kototoro abweicht. Keine neuen Ad-hoc-Ausnahmen hinzufügen, solange die generische Policy den Fall erklären kann.
+
+### Bereits vorher erledigt und weiterhin relevant
+
+- Brotli/Zstd Host-Runtime
+- Cloudflare WebView/Chromium Solve, Clearance-Änderung, Retry Originalrequest
 - `SManga.memo`
 - `SMangaUpdate`
 - `Source.getMangaUpdate(...)`
-- Legacy-Fallback für ältere Extensions
-- `MihonMangaRepository` auf kombinierten 1.6-Update-Pfad
-- `minSdk = 26`, passend zu aktuellem Mihon + Keiyoushi, um dynamische Default-Method-/Serializer-ABI-Probleme zu vermeiden
-- fokussierte Mihon Regression Tests
-- Debug APK CI
-- optimierten signierten Test-APK-Workflow
+- Legacy Details/Chapter Fallback
+- kombinierter `MihonMangaRepository` 1.6 Update-Pfad
+- `minSdk = 26`
+- Request-/Source-Context
+- externe APK/Metadata/Tachiyomi-Ecosystem-Runtime-Flächen
 
-Beim letzten gespeicherten Stand war der bedeutende Source-Head:
-`d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32`
+## Historische Zwischenfehler der letzten Port-Runde
 
-Danach wurde durch GitHub Actions ein Status-Commit erzeugt. Re-fetch den echten aktuellen Head.
+Nicht als neue Runtime-Bugs zählen:
 
-## Letzte bekannte Testergebnisse
+1. `76f56492...`: Regressionstest fand, dass namensbasierter Legacy-`BrotliInterceptor` Filter beim Refactor verloren ging. Behoben.
+2. `86f6acd...`: Zwei JVM-Tests scheiterten aus **einer** Root Cause, `android.util.Log.d()` während Helper-Konstruktion trifft Plain-JVM-Android-Stubs und wirft `RuntimeException`. Nicht notwendige Konstruktionslogs entfernt.
+3. `157d94e...`: final grün.
 
-Vor `d5e10a1` wurde auf dem Gerät bestätigt:
+## Höchste Priorität: echter Gerätetest des finalen APKs
 
-- Extensions laden grundsätzlich erfolgreich.
-- Der alte `UncaughtExceptionInterceptor`-Fehler ist verschwunden.
-- Der fehlende `okhttp3.brotli.BrotliInterceptor` wurde identifiziert und behoben.
-- Comix Cloudflare WebView löst die Challenge erfolgreich.
-- `cf_clearance` ändert sich.
-- Der Originalrequest wird danach wiederholt.
-- Comix liefert danach HTTP 200.
-- Danach trat bei Comix, MangaDot.net und Manga Ball derselbe `GeneratedSerializer.typeParametersSerializers()` `AbstractMethodError` auf.
-- Root Cause wurde als Host-minSdk/Android-Interface-Desugaring-ABI identifiziert; Futon wurde auf API 26 angehoben.
-- Weeb Central lief in den alten Details-/Chapter-Pfad und warf `UnsupportedOperationException`; Futon wurde auf `getMangaUpdate(...)` umgestellt.
+Es gibt noch keinen aufgezeichneten realen Device-Test des finalen `157d94e...` APKs. CI/DEX ist grün, aber Device-Evidence hat Vorrang.
 
-Die fokussierten Tests und der signierte optimierte Test-Build für `d5e10a1` sind laut `.ci/mihon-fix-latest.json` erfolgreich.
+Teste mindestens:
 
-**Ein neuer realer Gerätetest nach `d5e10a1` ist im Kontext noch nicht als abgeschlossen dokumentiert.** Mein nächster Log/Test kann also neue Wahrheit liefern.
+- Comix
+- MangaDot.net
+- Manga Ball
+- Weeb Central
+- MangaRead.org
 
-## Besonders wichtiger Kototoro-Unterschied
+jeweils soweit möglich:
 
-Kototoro hat eine explizite Parent-ABI-ClassLoader-Policy:
+- Browse/Popular
+- Search
+- Details
+- Chapters
+- Pages/Images
 
-- Host-/Parent-owned u. a. `kotlinx.coroutines`, Android/AndroidX, OkHttp, Okio, Rx, `eu.kanade.tachiyomi.source.*`, `eu.kanade.tachiyomi.network.*`, `eu.kanade.tachiyomi.util.*`, Injekt usw.
-- Generierte `$-CC` / `$DefaultImpls` Bridge-Klassen bleiben bewusst child-first, weil sie mit Extension-APKs ausgeliefert werden können.
+Für jeden Fehler:
 
-Futons derzeitiger ChildFirstPathClassLoader ist generischer und besitzt diese komplette Tachiyomi-ABI-Ownership-Policy noch nicht.
+1. erste echte Exception im relevanten Source-Pfad isolieren
+2. wiederholte rote Zeilen nach Root Cause zusammenfassen
+3. Futon-Pfad bestimmen
+4. aktuellen Kototoro-Pfad am live SHA bestimmen
+5. aktuellen Keiyoushi/Mihon-Vertrag prüfen
+6. Kototoro-Lösung bevorzugt code-nah portieren, falls sie den Fall generisch löst
+7. Regressionstest hinzufügen
+8. fokussierte Tests + Debug APK + Signed APK validieren
+9. bei Runtime/ClassLoader-Problemen APK/DEX prüfen
+10. `.ai/context/STATE.md` und `.ai/context/graph.yaml` aktualisieren
+11. dem Benutzer wieder eine direkt installierbare APK geben
 
-Wenn der neue Test irgendeinen dieser Fehler zeigt:
+Aktueller offener Runtime-Knoten: `POST_157D_DEVICE_VALIDATION`.
 
-- `AbstractMethodError`
-- `NoSuchMethodError`
-- `IncompatibleClassChangeError`
-- `ClassCastException`
-- `VerifyError`
-- Host-/Extension-Doppelklassen
-- ClassLoader-bedingte `ClassNotFoundException`
+## Evidenzpriorität
 
-... dann untersuche zuerst Kototoros ClassLoader-Policy. Wenn sie den Fall sauber löst, portiere sie bevorzugt vollständig statt eines weiteren Einzelpatches.
+1. neuestes reales Gerätelog / reproduzierbares Device-Verhalten
+2. aktueller Kototoro-/Keiyoushi-/Mihon-Code am exakten SHA
+3. Regressionstests + vollständige APK Builds + DEX-Prüfung
+4. Dokumentation
+5. Annahmen
 
-## Testverfahren
-
-Für jeden Fix:
-
-1. Root Cause aus dem neuesten Log isolieren.
-2. Futon-Codepfad bestimmen.
-3. Kototoro-Äquivalent am aktuellen Kototoro-SHA bestimmen.
-4. Aktuellen Keiyoushi/Mihon-Vertrag prüfen.
-5. Entscheidung dokumentieren: Futon behalten, Teil portieren oder Kototoro-Pfad vollständig portieren.
-6. Regressionstest hinzufügen, der genau diesen Fehler gefangen hätte, sofern technisch möglich.
-7. Fokussierte Mihon-Tests ausführen.
-8. Komplette Debug APK bauen.
-9. Bei Runtime/ClassLoader-Problemen die gebaute APK/Dex auf die benötigten Klassen/Methoden prüfen.
-10. Signierten optimierten Testbuild verifizieren, wenn Workflow verfügbar.
-11. Mir eine direkt installierbare APK geben, nicht nur einen GitHub-Actions-ZIP-Link.
-12. Mich gezielt testen lassen:
-    - Comix
-    - MangaDot.net
-    - Manga Ball
-    - Weeb Central
-    - MangaRead.org
-    - jeweils Browse/Search/Details/Chapters/Pages/Images soweit unterstützt.
-13. Mein neues Testergebnis wieder in `STATE.md` und `graph.yaml` eintragen.
-
-## Kontextgraph MUSS gepflegt werden
-
-Nach jeder Arbeitsrunde musst du `.ai/context/graph.yaml` und `.ai/context/STATE.md` aktualisieren.
-
-Mindestens aktualisieren:
-
-- aktueller Futon-Branch-Head
-- letzter bedeutender Source-Head
-- aktueller Kototoro-Referenz-SHA
-- neue Device-Evidence
-- neue Root Cause
-- neuer Fix
-- Teststatus
-- CI-Run-IDs
-- APK-Status
-- welche Kototoro-Datei/Version als Referenz verwendet wurde
-- offene nächste Test-/Fehlerknoten
-
-Entferne historische Ursachen nicht einfach. Markiere sie als `resolved`, `historical` oder `superseded`, damit die nächste KI versteht, warum die aktuelle Architektur so aussieht.
-
-## Git-Sicherheitsregeln
-
-- Nur auf `fix/mihon-uncaught-exception-interceptor` arbeiten.
-- `devel` nicht direkt verändern.
-- PR #1 Draft lassen.
-- Nicht mergen, außer ich verlange es ausdrücklich.
-- Keine Releases erstellen, außer ich verlange es ausdrücklich.
-- Keine Secrets/Signing-Keys/Passwörter ausgeben.
-- Während ein relevanter CI-Lauf aktiv ist nicht unnötig neue Source-Commits erzeugen, wenn dadurch der Lauf abgebrochen würde.
-
-## Definition von „besser“
-
-Eine Kototoro-Implementierung ist nur dann „besser“ für Futon, wenn mindestens einer dieser Punkte anhand von Code/Test/Device-Evidence gilt:
-
-- sie erfüllt einen aktuelleren Mihon/Keiyoushi-ABI-Vertrag,
-- sie verhindert eine bereits beobachtete Runtime-Exception generisch,
-- sie besitzt eine robustere ABI-/ClassLoader-Grenze,
-- sie erhält Host-Netzwerkfunktionen ohne Keiyoushi-Verträge zu brechen,
-- sie hat Regressionstests für den problematischen Pfad,
-- sie funktioniert auf meinem Gerät, wo Futons Implementierung scheitert,
-- oder sie deckt mehr Extension-Versionen ab ohne bestehende Quellen zu brechen.
-
-Nicht nur anhand von Codegröße oder Stil entscheiden.
-
-Beginne jetzt damit, meinen neuesten Test/Log entgegenzunehmen, den Kontext zu aktualisieren und die aktuelle Futon-Implementierung gegen den aktuellen Kototoro-Stand zu prüfen.
+Ein grüner Test darf niemals eine reale Device-Exception „wegbeweisen“.
