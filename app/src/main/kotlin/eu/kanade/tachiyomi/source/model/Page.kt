@@ -1,16 +1,15 @@
+// Ported and adapted from Kototoro at dec0ef781644245f6937dc1cafc8ca84963fe08e.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package eu.kanade.tachiyomi.source.model
 
 import android.net.Uri
 import eu.kanade.tachiyomi.network.ProgressListener
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
-/**
- * Mihon-compatible Page class.
- * Ported from Mihon source-api for extension compatibility.
- * 
- * Includes [uri] and [ProgressListener] for binary compatibility with extensions.
- */
+/** Mihon-compatible Page with the complete parent-owned compatibility surface. */
 @Serializable
 open class Page @JvmOverloads constructor(
     var index: Int,
@@ -22,11 +21,35 @@ open class Page @JvmOverloads constructor(
     val number: Int
         get() = index + 1
 
+    /** Additive text payload used by Tachiyomi-ABI forks. Manga sources may leave it null. */
     @Transient
-    var status: State = State.Queue
+    var text: String? = null
 
     @Transient
-    var progress: Int = 0
+    private val _statusFlow = MutableStateFlow<State>(State.Queue)
+
+    @Transient
+    val statusFlow = _statusFlow.asStateFlow()
+
+    @Transient
+    var status: State
+        get() = _statusFlow.value
+        set(value) {
+            _statusFlow.value = value
+        }
+
+    @Transient
+    private val _progressFlow = MutableStateFlow(0)
+
+    @Transient
+    val progressFlow = _progressFlow.asStateFlow()
+
+    @Transient
+    var progress: Int
+        get() = _progressFlow.value
+        set(value) {
+            _progressFlow.value = value
+        }
 
     override fun update(bytesRead: Long, contentLength: Long, done: Boolean) {
         progress = if (contentLength > 0) {
