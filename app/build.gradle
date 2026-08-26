@@ -27,7 +27,12 @@ android {
 
 	defaultConfig {
 		applicationId 'io.github.landwarderer.futon'
-		minSdk = 23
+		// Current Mihon and Keiyoushi extensions both target API 26 as their minimum.
+		// Keeping Futon lower makes D8 desugar interface default methods in host libraries
+		// (notably kotlinx.serialization GeneratedSerializer). Dynamically loaded extension
+		// implementations are unknown to that desugaring pass and then fail at runtime with
+		// AbstractMethodError for typeParametersSerializers(). Match the extension host ABI.
+		minSdk = 26
 		targetSdk = 36
 		versionCode project.hasProperty('versionCode') ? project.property('versionCode').toInteger() : 90801
         versionName project.hasProperty('versionName') ? project.property('versionName') : '9.8.1'
