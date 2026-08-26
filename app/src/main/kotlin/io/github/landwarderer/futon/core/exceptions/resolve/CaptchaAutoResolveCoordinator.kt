@@ -15,6 +15,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -53,10 +54,8 @@ class CaptchaAutoResolveCoordinator @Inject constructor(
         exception: CloudFlareProtectedException,
         timeoutMs: Long = DEFAULT_SOLVE_TIMEOUT_MS,
     ): CaptchaAutoResolveResult {
-        val host = runCatching { okhttp3.HttpUrl.Companion.toHttpUrl(exception.originalUrl).host.lowercase() }
-            .getOrElse {
-                runCatching { okhttp3.HttpUrl.Companion.toHttpUrl(exception.url).host.lowercase() }.getOrNull()
-            }
+        val host = runCatching { exception.originalUrl.toHttpUrl().host.lowercase() }
+            .getOrElse { runCatching { exception.url.toHttpUrl().host.lowercase() }.getOrNull() }
             ?: return CaptchaAutoResolveResult.FAILED
 
         if (hostCooldown.isInCooldown(host)) return CaptchaAutoResolveResult.COOLDOWN
