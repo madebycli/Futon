@@ -6,7 +6,10 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
+import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -27,20 +30,14 @@ class MihonModernHostContractTest {
 
     @Test
     fun defaultClientPreservesFullHostConfigurationWhileRebuildingInterceptors() {
-        val proxy = Proxy(
-            Proxy.Type.HTTP,
-            InetSocketAddress.createUnresolved("127.0.0.1", 8123),
-        )
+        val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress.createUnresolved("127.0.0.1", 8123))
         val baseClient = OkHttpClient.Builder()
             .proxy(proxy)
             .callTimeout(37, TimeUnit.SECONDS)
             .addInterceptor(BrotliInterceptor)
             .build()
 
-        val helper = MihonNetworkHelper(
-            baseClient = baseClient,
-            cookieJar = CookieJar.NO_COOKIES,
-        )
+        val helper = MihonNetworkHelper(baseClient = baseClient, cookieJar = CookieJar.NO_COOKIES)
 
         assertSame(proxy, helper.client.proxy)
         assertEquals(baseClient.callTimeoutMillis, helper.client.callTimeoutMillis)
@@ -55,17 +52,74 @@ class MihonModernHostContractTest {
         )
 
         assertFalse(helper.client.networkInterceptors.any { it === BrotliInterceptor })
-        assertEquals(
-            1,
-            helper.cloudflareClient.networkInterceptors.count { it === BrotliInterceptor },
-        )
+        assertEquals(1, helper.cloudflareClient.networkInterceptors.count { it === BrotliInterceptor })
     }
 
     @Test
     fun httpSourceExposesBaseUrlAsHomeUrl() {
-        val source = LegacyPageFetchSource()
+        assertEquals("https://example.org", LegacyPageFetchSource().getHomeUrl())
+    }
 
-        assertEquals("https://example.org", source.getHomeUrl())
+    @Test
+    fun modernMangaAbiPersistsTachiyomiXFields() {
+        val manga = SManga.create().apply {
+            title = "Manga"
+            url = "/manga"
+            genres = listOf("Action", "Drama")
+            altTitles = listOf("Alt")
+            banner = "https://example.org/banner.jpg"
+            contentRating = SManga.ContentRating.SUGGESTIVE
+            score = 87
+            readingMode = SManga.ReadingMode.LONG_STRIP
+            memo = buildJsonObject { put("token", "abc") }
+        }
+
+        assertEquals(listOf("Action", "Drama"), manga.genres)
+        assertEquals("Action, Drama", manga.genre)
+        assertEquals(listOf("Alt"), manga.altTitles)
+        assertEquals("https://example.org/banner.jpg", manga.banner)
+        assertEquals(SManga.ContentRating.SUGGESTIVE, manga.contentRating)
+        assertEquals(87, manga.score)
+        assertEquals(SManga.ReadingMode.LONG_STRIP, manga.readingMode)
+        assertEquals("abc", manga.memo["token"]?.toString()?.trim('"'))
+    }
+
+    @Test
+    fun modernChapterAndPageAbiPersistsExtensionFieldsAndFlows() {
+        val chapter = SChapter.create().apply {
+            name = "Chapter 10.5a"
+            url = "/chapter"
+            number = "10.5a"
+            volume = "2"
+            scanlators = listOf("Group A", "Group B")
+            note = "note"
+            memo = buildJsonObject { put("key", "value") }
+        }
+        assertEquals(10.5f, chapter.chapter_number)
+        assertEquals("2", chapter.volume)
+        assertEquals(listOf("Group A", "Group B"), chapter.scanlators)
+        assertEquals("Group A, Group B", chapter.scanlator)
+        assertEquals("note", chapter.note)
+
+        val page = Page(0).apply {
+            text = "payload"
+            status = Page.State.Ready
+            progress = 42
+        }
+        assertEquals("payload", page.text)
+        assertEquals(Page.State.Ready, page.statusFlow.value)
+        assertEquals(42, page.progressFlow.value)
+    }
+
+    @Test
+    fun declaredBaseUrlCreatesBrowserAuthorityForMihonRequest() {
+        val source = object : ContentSource {
+            override val name: String = "MIHON_123"
+        }
+        val context = SourceRequestContext.from(source, "https://example.org/path")
+
+        assertTrue(context.allowsBrowserRequest("https://example.org/challenge"))
+        assertFalse(context.allowsBrowserRequest("https://evil.example/challenge"))
     }
 
     @Test
@@ -120,14 +174,7 @@ class MihonModernHostContractTest {
 
         override fun fetchPageList(chapter: SChapter): Observable<List<Page>> {
             fetchCalls++
-            return Observable.just(
-                listOf(
-                    Page(
-                        index = 0,
-                        imageUrl = "https://images.example.org/1.jpg",
-                    ),
-                ),
-            )
+            return Observable.just(listOf(Page(index = 0, imageUrl = "https://images.example.org/1.jpg")))
         }
     }
 
