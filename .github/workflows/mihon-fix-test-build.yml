@@ -181,7 +181,7 @@ jobs:
           # artifact itself so source/unit-test compatibility cannot hide a release-only shrinker break.
           for symbol in \
             'eu/kanade/tachiyomi/source/Source' \
-            'eu/kanade/tachiyomi/source/RefreshContext' \
+            'eu/kanade/tachiyomi/source/model/RefreshContext' \
             'eu/kanade/tachiyomi/source/online/HttpSource' \
             'eu/kanade/tachiyomi/source/model/SManga' \
             'eu/kanade/tachiyomi/source/model/SChapter' \
