@@ -1,0 +1,265 @@
+schema_version: 1
+project: Futon-Mihon-Compatibility
+updated_at: 2026-08-26
+update_policy:
+  mandatory: true
+  rule: "After every meaningful device result, upstream comparison, code fix, regression test, CI result, or reference-SHA change, update this graph and STATE.md."
+  evidence_priority:
+    - on_device_runtime
+    - current_upstream_source
+    - focused_tests_and_full_apk
+    - documentation
+    - inference
+
+nodes:
+  FUTON_REPO:
+    type: repository
+    value: madebycli/Futon
+    license: GPL-3.0
+
+  FUTON_FIX_BRANCH:
+    type: branch
+    value: fix/mihon-uncaught-exception-interceptor
+    snapshot_head: 18231440e71c007cfe32e95373d8722658f08882
+    source_head: d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32
+    note: "snapshot_head is a CI status commit; source_head is its meaningful source parent"
+
+  PR_1:
+    type: pull_request
+    value: 1
+    base: devel
+    draft: true
+    merge_allowed_without_user: false
+
+  APP_VERSION:
+    type: version
+    value: 9.8.1
+    min_sdk: 26
+    debug_application_id: io.github.landwarderer.futon.debug
+
+  LATEST_CI:
+    type: evidence
+    source_sha: d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32
+    dedicated_run: 32948732345
+    debug_run: 32948738540
+    focused_verify: success
+    signed_release: success
+    debug_build: success
+
+  DEVICE_PRE_D5:
+    type: evidence
+    status: historical
+    observations:
+      - "Mihon extensions load successfully: five installed extension APKs and dozens of sources"
+      - "Original UncaughtExceptionInterceptor default-client failure disappeared after host fix"
+      - "Missing okhttp3.brotli.BrotliInterceptor host class was observed and fixed"
+      - "Comix Cloudflare WebView solve produced changed cf_clearance, retried original request, returned HTTP 200"
+      - "Comix, MangaDot.net, Manga Ball then hit GeneratedSerializer.typeParametersSerializers AbstractMethodError"
+      - "Weeb Central hit legacy-path UnsupportedOperationException"
+
+  POST_D5_DEVICE_VALIDATION:
+    type: unresolved_test
+    status: open
+    required_sources:
+      - Comix
+      - MangaDot.net
+      - Manga Ball
+      - Weeb Central
+      - MangaRead.org
+    required_paths:
+      - browse_or_popular
+      - search
+      - details
+      - chapters
+      - pages_and_images
+
+  FIX_DEFAULT_CLIENT:
+    type: fix
+    status: implemented_and_tested
+    includes:
+      - UncaughtExceptionInterceptor
+      - UserAgentInterceptor
+      - CloudflareInterceptor
+      - forbidden_compression_network_interceptor_filtering
+      - preserve_compatible_host_interceptors
+
+  FIX_BROTLI_ZSTD_RUNTIME:
+    type: fix
+    status: implemented_and_tested
+    includes:
+      - okhttp_brotli_host_runtime
+      - okhttp_zstd_host_runtime
+
+  FIX_CLOUDFLARE:
+    type: fix
+    status: on_device_proven
+    strategy: "WebView/Chromium solves challenge, host observes clearance change, original OkHttp source request retries"
+    proven_source: Comix
+    proven_result: HTTP_200_after_retry
+
+  FIX_SMANGA_MEMO:
+    type: fix
+    status: implemented_and_tested
+
+  FIX_SOURCE_API_16:
+    type: fix
+    status: implemented_and_tested
+    includes:
+      - SMangaUpdate
+      - Source.getMangaUpdate
+      - legacy_details_chapters_fallback
+      - MihonMangaRepository_combined_update_path
+
+  FIX_API26:
+    type: fix
+    status: implemented_and_tested
+    from_min_sdk: 23
+    to_min_sdk: 26
+    reason: "Avoid incompatible interface-desugaring ABI for dynamically loaded extension serializers; align with current Mihon and Keiyoushi baseline"
+
+  KOTOTORO_REPO:
+    type: reference_repository
+    value: Kototoro-app/Kototoro
+    branch: devel
+    snapshot_sha: e036c5940af6b849c055ab46d73c0ec4896276f7
+    version: 2.0.3
+    license: Apache-2.0
+    role: preferred_reference_implementation
+
+  KOTO_MI_HON_DOC:
+    type: reference
+    repo_node: KOTOTORO_REPO
+    path: docs/reference/mihon-integration.md
+    summary: "Documents loader -> ChildFirstPathClassLoader -> Injekt/NetworkHelper -> manager -> repository -> parser/UI flow"
+
+  KOTO_NETWORK_HELPER:
+    type: reference
+    repo_node: KOTOTORO_REPO
+    path: app/src/main/kotlin/org/skepsun/kototoro/mihon/compat/KotoNetworkHelper.kt
+    strengths:
+      - rebuilds_mihon_interceptor_lists_from_host_client
+      - concrete_required_interceptors_and_order
+      - compression_compatibility_filtering
+      - host_owned_cloudflare_resolution
+      - request_context_and_debugging
+      - brotli_zstd_runtime_awareness
+
+  KOTO_CLASSLOADER:
+    type: reference
+    repo_node: KOTOTORO_REPO
+    path: app/src/main/kotlin/org/skepsun/kototoro/mihon/util/ChildFirstPathClassLoader.kt
+
+  KOTO_CLASSLOADER_POLICY:
+    type: reference
+    repo_node: KOTOTORO_REPO
+    path: app/src/main/kotlin/org/skepsun/kototoro/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt
+    assessment: stronger_than_current_futon_for_explicit_abi_ownership
+    parent_owned_namespaces:
+      - java
+      - javax
+      - kotlin
+      - kotlinx.coroutines
+      - android
+      - androidx
+      - org.json
+      - org.jsoup
+      - okhttp3
+      - okio
+      - rx
+      - eu.kanade.tachiyomi.source
+      - eu.kanade.tachiyomi.network
+      - eu.kanade.tachiyomi.util
+      - uy.kohesive.injekt
+    child_first_bridge_exceptions:
+      - "$-CC"
+      - "$DefaultImpls"
+
+  FUTON_CLASSLOADER:
+    type: implementation
+    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/ChildFirstPathClassLoader.kt
+    assessment: "generic system-child-parent strategy; lacks Kototoro's explicit Tachiyomi ABI ownership policy"
+
+  KOTO_SOURCE_API:
+    type: reference
+    repo_node: KOTOTORO_REPO
+    path: app/src/main/kotlin/eu/kanade/tachiyomi/source/Source.kt
+    features:
+      - modern_getMangaUpdate
+      - legacy_fallbacks
+      - broader_fork_compatibility_surface
+
+  COPY_REFERENCE_POLICY:
+    type: instruction
+    rule: "If Futon fails a Mihon/Keiyoushi behavior and Kototoro has a demonstrated working equivalent, port the relevant Kototoro implementation as literally/word-for-word as practical instead of inventing another workaround. Adapt only project/package/import/DI/model integration boundaries, port tests, preserve Apache-2.0 attribution/notices, and record the exact source path + SHA here."
+
+  FAILURE_CLASSLOADER_FAMILY:
+    type: trigger
+    patterns:
+      - AbstractMethodError
+      - NoSuchMethodError
+      - IncompatibleClassChangeError
+      - ClassCastException
+      - VerifyError
+      - duplicate_API_class_identity
+      - classloader_specific_ClassNotFoundException
+    action: "Compare KOTO_CLASSLOADER_POLICY first; strongly prefer exact policy port before ad-hoc class exceptions"
+
+  SAFETY_CONSTRAINTS:
+    type: constraints
+    values:
+      - work_only_on_fix_branch
+      - keep_pr_1_draft
+      - never_merge_without_explicit_user_request
+      - never_modify_devel_directly_without_explicit_user_request
+      - never_expose_signing_secrets
+      - never_claim_fixed_without_device_evidence_when_runtime_bug_is_device_only
+
+edges:
+  - from: FUTON_REPO
+    relation: has_branch
+    to: FUTON_FIX_BRANCH
+  - from: FUTON_FIX_BRANCH
+    relation: represented_by
+    to: PR_1
+  - from: FUTON_FIX_BRANCH
+    relation: validated_by
+    to: LATEST_CI
+  - from: DEVICE_PRE_D5
+    relation: motivated
+    to: FIX_DEFAULT_CLIENT
+  - from: DEVICE_PRE_D5
+    relation: motivated
+    to: FIX_BROTLI_ZSTD_RUNTIME
+  - from: DEVICE_PRE_D5
+    relation: proved
+    to: FIX_CLOUDFLARE
+  - from: DEVICE_PRE_D5
+    relation: motivated
+    to: FIX_SOURCE_API_16
+  - from: DEVICE_PRE_D5
+    relation: motivated
+    to: FIX_API26
+  - from: FIX_DEFAULT_CLIENT
+    relation: informed_by
+    to: KOTO_NETWORK_HELPER
+  - from: FIX_CLOUDFLARE
+    relation: informed_by
+    to: KOTO_NETWORK_HELPER
+  - from: FIX_SOURCE_API_16
+    relation: comparable_to
+    to: KOTO_SOURCE_API
+  - from: FUTON_CLASSLOADER
+    relation: should_be_benchmarked_against
+    to: KOTO_CLASSLOADER_POLICY
+  - from: FAILURE_CLASSLOADER_FAMILY
+    relation: triggers_review_of
+    to: KOTO_CLASSLOADER_POLICY
+  - from: COPY_REFERENCE_POLICY
+    relation: governs
+    to: KOTOTORO_REPO
+  - from: POST_D5_DEVICE_VALIDATION
+    relation: validates
+    to: FUTON_FIX_BRANCH
+  - from: SAFETY_CONSTRAINTS
+    relation: governs
+    to: FUTON_FIX_BRANCH
