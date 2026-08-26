@@ -4,6 +4,8 @@ import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import eu.kanade.tachiyomi.source.model.SManga
 import io.github.landwarderer.futon.core.network.webview.CaptchaContinuationClient
+import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
+import io.github.landwarderer.futon.mihon.parsers.model.ContentType
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.CookieJar
@@ -145,6 +147,37 @@ class MihonNetworkHelperTest {
             .map { it.javaClass.simpleName }
 
         assertTrue(names.containsAll(REQUIRED_INTERCEPTORS))
+    }
+
+    @Test
+    fun sourceContextInterceptorRestoresMissingContentSourceTag() {
+        val source = object : ContentSource {
+            override val name = "MIHON_TEST"
+            override val locale = "en"
+            override val contentType = ContentType.MANGA
+        }
+        val capturedRequest = AtomicReference<Request>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor(MihonSourceContextInterceptor())
+            .addInterceptor { chain ->
+                capturedRequest.set(chain.request())
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body("".toResponseBody())
+                    .build()
+            }
+            .build()
+
+        MihonRequestContext.withSourceBlocking(source) {
+            client.newCall(Request.Builder().url("https://example.com/image.jpg").build())
+                .execute()
+                .close()
+        }
+
+        assertSame(source, capturedRequest.get().tag(ContentSource::class.java))
     }
 
     @Test
