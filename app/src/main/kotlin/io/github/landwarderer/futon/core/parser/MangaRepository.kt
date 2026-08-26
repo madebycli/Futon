@@ -1,3 +1,5 @@
+// Slowdown contract adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.core.parser
 
 import android.content.Context
@@ -31,101 +33,96 @@ import javax.inject.Singleton
 
 interface MangaRepository {
 
-	val source: MangaSource
+    val source: MangaSource
+    val sortOrders: Set<SortOrder>
+    var defaultSortOrder: SortOrder
+    val filterCapabilities: MangaListFilterCapabilities
 
-	val sortOrders: Set<SortOrder>
+    suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga>
+    suspend fun getDetails(manga: Manga): Manga
+    suspend fun getPages(chapter: MangaChapter): List<MangaPage>
+    suspend fun getPageUrl(page: MangaPage): String
+    suspend fun getFilterOptions(): MangaListFilterOptions
+    suspend fun getRelated(seed: Manga): List<Manga>
 
-	var defaultSortOrder: SortOrder
+    /**
+     * Whether downloader requests for this repository should respect the configured per-source
+     * delay. Mihon extensions return true by default, matching Kototoro's generic repository
+     * behavior, rather than being skipped just because they are not ParserMangaRepository.
+     */
+    fun isSlowdownEnabled(): Boolean = source != LocalMangaSource && source != TestMangaSource
 
-	val filterCapabilities: MangaListFilterCapabilities
+    suspend fun find(manga: Manga): Manga? {
+        val list = getList(0, SortOrder.RELEVANCE, MangaListFilter(query = manga.title))
+        return list.find { x -> x.id == manga.id }
+    }
 
-	suspend fun getList(offset: Int, order: SortOrder?, filter: MangaListFilter?): List<Manga>
+    @Singleton
+    class Factory @Inject constructor(
+        @ApplicationContext private val context: Context,
+        private val localMangaRepository: LocalMangaRepository,
+        private val loaderContext: MangaLoaderContext,
+        private val contentCache: MemoryContentCache,
+        private val mirrorSwitcher: MirrorSwitcher,
+        private val mihonExtensionManager: MihonExtensionManager,
+    ) {
+        private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
 
-	suspend fun getDetails(manga: Manga): Manga
+        @AnyThread
+        fun create(source: MangaSource): MangaRepository {
+            when (source) {
+                is MangaSourceInfo -> return create(source.mangaSource)
+                LocalMangaSource -> return localMangaRepository
+                UnknownMangaSource -> return EmptyMangaRepository(source)
+            }
+            cache[source]?.get()?.let { return it }
+            return synchronized(cache) {
+                cache[source]?.get()?.let { return it }
+                val repository = createRepository(source)
+                if (repository != null) {
+                    cache[source] = WeakReference(repository)
+                    repository
+                } else {
+                    EmptyMangaRepository(source)
+                }
+            }
+        }
 
-	suspend fun getPages(chapter: MangaChapter): List<MangaPage>
+        private fun createRepository(source: MangaSource): MangaRepository? = when (source) {
+            is MangaParserSource -> ParserMangaRepository(
+                parser = loaderContext.newParserInstance(source),
+                cache = contentCache,
+                mirrorSwitcher = mirrorSwitcher,
+            )
 
-	suspend fun getPageUrl(page: MangaPage): String
+            TestMangaSource -> TestMangaRepository(
+                loaderContext = loaderContext,
+                cache = contentCache,
+            )
 
-	suspend fun getFilterOptions(): MangaListFilterOptions
+            is ExternalMangaSource -> if (source.isAvailable(context)) {
+                ExternalMangaRepository(
+                    contentResolver = context.contentResolver,
+                    source = source,
+                    cache = contentCache,
+                )
+            } else {
+                EmptyMangaRepository(source)
+            }
 
-	suspend fun getRelated(seed: Manga): List<Manga>
+            is MihonMangaSource -> MihonMangaRepository(
+                source = source,
+                cache = contentCache,
+            )
 
-	suspend fun find(manga: Manga): Manga? {
-		val list = getList(0, SortOrder.RELEVANCE, MangaListFilter(query = manga.title))
-		return list.find { x -> x.id == manga.id }
-	}
-
-	@Singleton
-	class Factory @Inject constructor(
-		@ApplicationContext private val context: Context,
-		private val localMangaRepository: LocalMangaRepository,
-		private val loaderContext: MangaLoaderContext,
-		private val contentCache: MemoryContentCache,
-		private val mirrorSwitcher: MirrorSwitcher,
-		private val mihonExtensionManager: MihonExtensionManager,
-	) {
-
-		private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
-
-		@AnyThread
-		fun create(source: MangaSource): MangaRepository {
-			when (source) {
-				is MangaSourceInfo -> return create(source.mangaSource)
-				LocalMangaSource -> return localMangaRepository
-				UnknownMangaSource -> return EmptyMangaRepository(source)
-			}
-			cache[source]?.get()?.let { return it }
-			return synchronized(cache) {
-				cache[source]?.get()?.let { return it }
-				val repository = createRepository(source)
-				if (repository != null) {
-					cache[source] = WeakReference(repository)
-					repository
-				} else {
-					EmptyMangaRepository(source)
-				}
-			}
-		}
-
-		private fun createRepository(source: MangaSource): MangaRepository? = when (source) {
-			is MangaParserSource -> ParserMangaRepository(
-				parser = loaderContext.newParserInstance(source),
-				cache = contentCache,
-				mirrorSwitcher = mirrorSwitcher,
-			)
-
-			TestMangaSource -> TestMangaRepository(
-				loaderContext = loaderContext,
-				cache = contentCache,
-			)
-
-			is ExternalMangaSource -> if (source.isAvailable(context)) {
-				ExternalMangaRepository(
-					contentResolver = context.contentResolver,
-					source = source,
-					cache = contentCache,
-				)
-			} else {
-				EmptyMangaRepository(source)
-			}
-
-			is MihonMangaSource -> MihonMangaRepository(
-				source = source,
-				cache = contentCache,
-			)
-
-			else -> {
-				if (source.name.startsWith("mihon:") || source.name.startsWith("MIHON_")) {
-					mihonExtensionManager.getMihonMangaSourceByName(source.name)?.let {
-						return MihonMangaRepository(
-							source = it,
-							cache = contentCache,
-						)
-					}
-				}
-				null
-			}
-		}
-	}
+            else -> {
+                if (source.name.startsWith("mihon:") || source.name.startsWith("MIHON_")) {
+                    mihonExtensionManager.getMihonMangaSourceByName(source.name)?.let {
+                        return MihonMangaRepository(source = it, cache = contentCache)
+                    }
+                }
+                null
+            }
+        }
+    }
 }
