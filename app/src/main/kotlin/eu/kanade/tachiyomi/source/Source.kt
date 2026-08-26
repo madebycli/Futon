@@ -1,57 +1,56 @@
-// Adapted from Kototoro's Tachiyomi ABI host surface at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Ported and adapted from Kototoro at dec0ef781644245f6937dc1cafc8ca84963fe08e.
 // Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package eu.kanade.tachiyomi.source
 
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.RefreshContext
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import rx.Observable
 
-/**
- * Mihon/TachiyomiX-compatible source host API used by dynamically loaded extensions.
- */
+/** Complete parent-owned Tachiyomi/Mihon source host ABI. */
 interface Source {
+
     val id: Long
     val name: String
 
     val lang: String
         get() = ""
 
-    /** TachiyomiX 1.6 default surface. */
+    fun isNovelSource(): Boolean = false
+
     val supportsLatest: Boolean
         get() = false
 
-    /** TachiyomiX 1.6 default surface. */
     fun getFilterList(): FilterList = FilterList()
 
-    /** TachiyomiX 1.6 default surface for non-CatalogueSource implementations. */
     suspend fun getPopularManga(page: Int): MangasPage =
         throw IllegalStateException("Not used")
 
-    /** TachiyomiX 1.6 default surface for non-CatalogueSource implementations. */
     suspend fun getLatestUpdates(page: Int): MangasPage =
         throw IllegalStateException("Not used")
 
-    /** TachiyomiX 1.6 default surface for non-CatalogueSource implementations. */
     suspend fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage =
         throw IllegalStateException("Not used")
 
     @Suppress("DEPRECATION")
-    suspend fun getMangaDetails(manga: SManga): SManga {
-        return fetchMangaDetails(manga).toBlocking().first()
-    }
+    suspend fun getMangaDetails(manga: SManga): SManga =
+        fetchMangaDetails(manga).toBlocking().first()
 
     @Suppress("DEPRECATION")
-    suspend fun getChapterList(manga: SManga): List<SChapter> {
-        return fetchChapterList(manga).toBlocking().first()
-    }
+    suspend fun getChapterList(manga: SManga): List<SChapter> =
+        fetchChapterList(manga).toBlocking().first()
 
-    /**
-     * TachiyomiX 1.6 combined update API. Older sources inherit the legacy fallback.
-     */
+    @Deprecated(
+        "Fork compatibility API superseded by getMangaUpdate",
+        ReplaceWith("getMangaUpdate"),
+    )
+    suspend fun getChapterList(manga: SManga, context: RefreshContext): List<SChapter> =
+        getChapterList(manga)
+
     suspend fun getMangaUpdate(
         manga: SManga,
         chapters: List<SChapter>,
@@ -64,9 +63,11 @@ interface Source {
     }
 
     @Suppress("DEPRECATION")
-    suspend fun getPageList(chapter: SChapter): List<Page> {
-        return fetchPageList(chapter).toBlocking().first()
-    }
+    suspend fun getPageList(chapter: SChapter): List<Page> =
+        fetchPageList(chapter).toBlocking().first()
+
+    suspend fun fetchPageText(page: Page): String =
+        throw UnsupportedOperationException("Not a novel source")
 
     @Deprecated("Use the non-RxJava API instead", ReplaceWith("getMangaDetails"))
     fun fetchMangaDetails(manga: SManga): Observable<SManga> =
