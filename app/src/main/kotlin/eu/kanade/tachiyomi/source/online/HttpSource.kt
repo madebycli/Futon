@@ -1,4 +1,4 @@
-// Adapted from Kototoro HttpSource at c1128b91140053b081cc7453c87a16f52ab2f12a.
+// Adapted from Kototoro HttpSource at dec0ef781644245f6937dc1cafc8ca84963fe08e.
 // Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package eu.kanade.tachiyomi.source.online
 
@@ -11,10 +11,12 @@ import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.Page
+import eu.kanade.tachiyomi.source.model.RefreshContext
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import io.github.landwarderer.futon.mihon.compat.MihonRequestContext
+import io.github.landwarderer.futon.mihon.compat.SourceRequestContext
 import io.github.landwarderer.futon.mihon.model.contentSource
 import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
 import okhttp3.Headers
@@ -34,31 +36,16 @@ import java.security.MessageDigest
 @Suppress("unused")
 abstract class HttpSource : CatalogueSource {
 
-    /** Network service. */
     protected val network: NetworkHelper by injectLazy()
 
-    /** Base url of the website without the trailing slash, like: http://mysite.com */
     abstract val baseUrl: String
 
-    /**
-     * Version id used to generate the source id. If the site completely changes and urls are
-     * incompatible, you may increase this value and it'll be considered as a new source.
-     */
     open val versionId = 1
 
-    /** Generated stable source id. */
     override val id by lazy { generateId(name, lang, versionId) }
 
-    /** Headers used for requests. */
     val headers: Headers by lazy { headersBuilder().build() }
 
-    /**
-     * Default network client for doing requests.
-     *
-     * Legacy Mihon sources historically received Brotli decoding through
-     * [NetworkHelper.cloudflareClient]. Current KeiSource implementations override this property
-     * and use the Brotli-free [NetworkHelper.client] required by their CompressionInterceptor.
-     */
     open val client: OkHttpClient
         get() = network.cloudflareClient
 
@@ -75,7 +62,6 @@ abstract class HttpSource : CatalogueSource {
 
     override fun toString() = "$name (${lang.uppercase()})"
 
-    /** URL opened when browsing the source in a WebView. */
     open fun getHomeUrl(): String = baseUrl
 
     // ======== Popular manga ========
@@ -178,6 +164,19 @@ abstract class HttpSource : CatalogueSource {
 
     protected abstract fun latestUpdatesParse(response: Response): MangasPage
 
+    // ======== Related manga ========
+
+    override val supportsRelatedMangas: Boolean
+        get() = false
+
+    protected open fun relatedMangaListRequest(manga: SManga): Request {
+        throw UnsupportedOperationException("Related manga request is not implemented")
+    }
+
+    protected open fun relatedMangaListParse(response: Response): List<SManga> {
+        throw UnsupportedOperationException("Related manga parser is not implemented")
+    }
+
     // ======== Content details ========
 
     @Suppress("DEPRECATION")
@@ -241,6 +240,20 @@ abstract class HttpSource : CatalogueSource {
         parser = ::chapterListParse,
     )
 
+    /**
+     * Kototoro/Tsundoku compatibility overload. Existing manga sources inherit the plain
+     * chapter-list behavior, while extensions compiled against this ABI can override it safely.
+     */
+    @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
+    @Deprecated(
+        "Fork-only API superseded by upstream's getMangaUpdate, which now accepts existing chapters directly. " +
+            "Kept temporarily so already-published extensions keep working; migrate to getMangaUpdate.",
+        ReplaceWith("getMangaUpdate"),
+    )
+    override suspend fun getChapterList(manga: SManga, context: RefreshContext): List<SChapter> {
+        return getChapterList(manga)
+    }
+
     protected open fun chapterListRequest(manga: SManga): Request = GET(baseUrl + manga.url, headers)
 
     protected abstract fun chapterListParse(response: Response): List<SChapter>
@@ -297,12 +310,19 @@ abstract class HttpSource : CatalogueSource {
 
     protected abstract fun imageUrlParse(response: Response): String
 
+    /**
+     * Attach both the legacy source tag and Kototoro's immutable browser-origin authority.
+     * The latter is required by the Cloudflare/browser transport path and prevents an extension
+     * from widening navigation beyond its declared source origin.
+     */
     private fun tagRequest(request: Request): Request {
-        if (request.tag(ContentSource::class.java) != null) {
+        if (request.tag(SourceRequestContext::class.java) != null) {
             return request
         }
+        val source = request.tag(ContentSource::class.java) ?: mihonContentSource()
         return request.newBuilder()
-            .tag(ContentSource::class.java, mihonContentSource())
+            .tag(ContentSource::class.java, source)
+            .tag(SourceRequestContext::class.java, SourceRequestContext.from(source, baseUrl))
             .build()
     }
 
@@ -373,7 +393,6 @@ abstract class HttpSource : CatalogueSource {
 
     open fun imageRequest(page: Page): Request = GET(page.imageUrl!!, headers)
 
-    /** Public helper to get headers for a page. */
     fun getPageHeaders(page: Page): Headers = imageRequest(page).headers
 
     // ======== URL helpers ========
