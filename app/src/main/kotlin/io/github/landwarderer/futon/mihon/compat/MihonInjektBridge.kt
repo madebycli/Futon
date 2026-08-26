@@ -10,6 +10,7 @@ import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.StringFormat
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.protobuf.ProtoBuf
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
 import uy.kohesive.injekt.Injekt
@@ -26,46 +27,42 @@ class MihonInjektBridge(
     private val cookieJar: CookieJar,
     private val webViewExecutor: WebViewExecutor? = null,
 ) {
-    
+
     private val application: Application
         get() = context.applicationContext as Application
-    
+
     @Volatile
     private var initialized = false
-    
+
     /**
      * This must be called before loading any Mihon extensions.
-     * 
-     * Thread-safe - can be called multiple times.
+     *
+     * Thread-safe, can be called multiple times.
      */
     @Synchronized
     fun initialize() {
         if (initialized) return
-        
+
         try {
             val networkHelper = MihonNetworkHelper(httpClient, cookieJar, webViewExecutor)
             Log.d(
                 "MihonInjektBridge",
                 "Creating MihonNetworkHelper with webViewExecutorPresent=${webViewExecutor != null}",
             )
-            
+
             Injekt.importModule(object : InjektModule {
                 override fun InjektRegistrar.registerInjectables() {
-                    // Application and Context
                     addSingleton(application)
                     addSingletonFactory<Context> { context.applicationContext }
-                    
-                    // Network components
+
                     addSingletonFactory<NetworkHelper> { networkHelper }
                     addSingletonFactory<OkHttpClient> { httpClient }
                     addSingletonFactory<CookieJar> { cookieJar }
-                    
-                    // SharedPreferences
+
                     addSingletonFactory<SharedPreferences> {
                         PreferenceManager.getDefaultSharedPreferences(context)
                     }
 
-                    // JSON - explicitly type it to ensure Injekt matches correctly
                     val json = Json {
                         ignoreUnknownKeys = true
                         explicitNulls = false
@@ -73,19 +70,21 @@ class MihonInjektBridge(
                     addSingletonFactory<Json> { json }
                     addSingletonFactory<StringFormat> { json }
                     addSingletonFactory<SerialFormat> { json }
+
+                    // Current extension ecosystems may resolve ProtoBuf directly from Injekt.
+                    // Futon already ships kotlinx-serialization-protobuf, so expose the same host
+                    // service Kototoro provides instead of forcing extensions to construct their own.
+                    addSingletonFactory<ProtoBuf> { ProtoBuf }
                 }
             })
-            
+
             initialized = true
-            Log.d("MIhonInjektBridge", "Injekt initialized with App dependencies")
+            Log.d("MihonInjektBridge", "Injekt initialized with app dependencies")
         } catch (e: Throwable) {
             Log.e("MihonInjektBridge", "CRITICAL: Failed to initialize Injekt bridge", e)
-            // Do not rethrow, so the app can continue to function without Mihon
+            // Keep Futon usable even when the optional extension runtime cannot initialize.
         }
     }
-    
-    /**
-     * Check if Injekt has been initialized.
-     */
+
     fun isInitialized(): Boolean = initialized
 }
