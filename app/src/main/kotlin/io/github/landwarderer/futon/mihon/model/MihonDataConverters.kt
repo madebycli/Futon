@@ -30,7 +30,9 @@ fun SManga.toDomainContent(
     
     // Safely access lateinit properties
     val safeTitle = try { title } catch (e: UninitializedPropertyAccessException) { null }
-    val safeGenres = try { getGenres() } catch (e: UninitializedPropertyAccessException) { null }
+    // Kototoro/current TachiyomiX exposes genres as a Kotlin property. Its JVM getter is still
+    // getGenres(), preserving extension ABI, but Kotlin host code must access it as `genres`.
+    val safeGenres: List<String>? = try { genres } catch (e: UninitializedPropertyAccessException) { null }
     val safeAuthor = try { author } catch (e: UninitializedPropertyAccessException) { null }
     val safeArtist = try { artist } catch (e: UninitializedPropertyAccessException) { null }
     val safeDescription = try { description } catch (e: UninitializedPropertyAccessException) { null }
