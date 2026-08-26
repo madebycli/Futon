@@ -1,3 +1,5 @@
+// Request replay context adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.core.network
 
 import android.os.Build
@@ -5,7 +7,9 @@ import io.github.landwarderer.futon.core.exceptions.CloudFlareBlockedException
 import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import okhttp3.Interceptor
+import okhttp3.Request
 import okhttp3.Response
+import okio.Buffer
 import okio.IOException
 import org.koitharu.kotatsu.parsers.model.MangaSource
 import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
@@ -15,32 +19,15 @@ class CloudFlareInterceptor : Interceptor {
         val request = chain.request()
         val response = chain.proceed(request)
 
-        // Android 6 (SDK 23) has a bug in the implementation of the
-        // "International Components for Unicode (ICU)" charset decoder used by "java.nio".
-        // The error occurs when reading a stream into a String if the byte sequence
-        // is interpreted in a way that causes the ICU decoder to flush its buffer incorrectly,
-        // resulting in a negative position in the underlying "ByteBuffer".
-        //
-        // As a workaround, we need to manually decode the bytes to avoid the ICU "Bad position" bug
-        // when running on Android 6.
         val protectionType = if (Build.VERSION.SDK_INT == 23) {
             try {
-                // Peek up to 512 bytes safely.
                 val bodyBytes = response.peekBody(512).bytes()
                 val bodyString = String(bodyBytes, Charsets.UTF_8)
-
                 when {
-                    // Check for common Cloudflare challenge indicators
                     bodyString.contains("cf-challenge") ||
                         bodyString.contains("ray_id") ||
-                        bodyString.contains("jschl_vc") -> {
-                        CloudFlareHelper.PROTECTION_CAPTCHA
-                    }
-                    // Check for access denied/blocked
-                    bodyString.contains("cf-error-details") -> {
-                        CloudFlareHelper.PROTECTION_BLOCKED
-                    }
-
+                        bodyString.contains("jschl_vc") -> CloudFlareHelper.PROTECTION_CAPTCHA
+                    bodyString.contains("cf-error-details") -> CloudFlareHelper.PROTECTION_BLOCKED
                     else -> CloudFlareHelper.PROTECTION_NOT_DETECTED
                 }
             } catch (e: Exception) {
@@ -48,7 +35,6 @@ class CloudFlareInterceptor : Interceptor {
                 CloudFlareHelper.PROTECTION_NOT_DETECTED
             }
         } else {
-            // Standard path for Android 7.0+
             try {
                 CloudFlareHelper.checkResponseForProtection(response)
             } catch (e: IllegalArgumentException) {
@@ -56,6 +42,7 @@ class CloudFlareInterceptor : Interceptor {
                     CloudFlareHelper.PROTECTION_NOT_DETECTED
                 } else {
                     e.printStackTraceDebug("CloudFlareInterceptor")
+                    CloudFlareHelper.PROTECTION_NOT_DETECTED
                 }
             }
         }
@@ -70,14 +57,31 @@ class CloudFlareInterceptor : Interceptor {
 
             CloudFlareHelper.PROTECTION_CAPTCHA -> response.closeThrowing(
                 CloudFlareProtectedException(
-                    url = request.url.toString(),
+                    url = CloudFlareHelper.getBrowserChallengeUrl(request.url.toString()),
                     source = request.tag(MangaSource::class.java),
                     headers = request.headers,
+                    method = request.method,
+                    body = request.readUtf8BodyOrNull(),
+                    contentType = request.header("Content-Type"),
+                    originalUrl = request.url.toString(),
                 ),
             )
 
             else -> response
         }
+    }
+
+    private fun Request.readUtf8BodyOrNull(): String? {
+        val requestBody = body ?: return null
+        if (requestBody.isDuplex() || requestBody.isOneShot()) return null
+        if (requestBody.contentLength() > MAX_REPLAY_BODY_BYTES) return null
+        return runCatching {
+            Buffer().use { buffer ->
+                requestBody.writeTo(buffer)
+                if (buffer.size > MAX_REPLAY_BODY_BYTES) return@runCatching null
+                buffer.readUtf8()
+            }
+        }.getOrNull()
     }
 
     private fun Response.closeThrowing(error: IOException): Nothing {
@@ -87,5 +91,9 @@ class CloudFlareInterceptor : Interceptor {
             error.addSuppressed(e)
         }
         throw error
+    }
+
+    private companion object {
+        const val MAX_REPLAY_BODY_BYTES = 2L * 1024L * 1024L
     }
 }
