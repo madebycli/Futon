@@ -157,12 +157,41 @@ jobs:
           mkdir -p "$RUNNER_TEMP/futon-dex"
           unzip -q "$APK" 'classes*.dex' -d "$RUNNER_TEMP/futon-dex"
           cat "$RUNNER_TEMP"/futon-dex/classes*.dex | strings > "$RUNNER_TEMP/futon-dex/strings.txt"
+          DEX_STRINGS="$RUNNER_TEMP/futon-dex/strings.txt"
+
+          require_dex_string() {
+            local symbol="$1"
+            if ! grep -Fq "$symbol" "$DEX_STRINGS"; then
+              echo "::error::Optimized APK is missing required Mihon ABI symbol: $symbol"
+              exit 1
+            fi
+          }
+
           # zstd-kmp resolves ZstdCompressor from JNI FindClass. A source-level reference is not enough:
           # the exact class must survive R8 in the optimized APK.
-          grep -Fq 'com/squareup/zstd/ZstdCompressor' "$RUNNER_TEMP/futon-dex/strings.txt"
+          require_dex_string 'com/squareup/zstd/ZstdCompressor'
+
           # ConfigurableSource preference UI is invoked by dynamically loaded extension APKs.
-          grep -Fq 'androidx/preference/PreferenceScreen' "$RUNNER_TEMP/futon-dex/strings.txt"
-          grep -Fq 'eu/kanade/tachiyomi/source/ConfigurableSource' "$RUNNER_TEMP/futon-dex/strings.txt"
+          require_dex_string 'androidx/preference/PreferenceScreen'
+          require_dex_string 'eu/kanade/tachiyomi/source/ConfigurableSource'
+
+          # External extension APKs call the host ABI outside R8's static graph. Gate the optimized
+          # artifact itself so source/unit-test compatibility cannot hide a release-only shrinker break.
+          for symbol in \
+            'eu/kanade/tachiyomi/source/Source' \
+            'eu/kanade/tachiyomi/source/RefreshContext' \
+            'eu/kanade/tachiyomi/source/online/HttpSource' \
+            'eu/kanade/tachiyomi/source/model/SManga' \
+            'eu/kanade/tachiyomi/source/model/SChapter' \
+            'eu/kanade/tachiyomi/source/model/Page' \
+            'getMangaUpdate' \
+            'getRelatedMangaList' \
+            'getChapterList' \
+            'getPageList' \
+            'fetchPageList' \
+            'getRequestTimeoutMillis'; do
+            require_dex_string "$symbol"
+          done
 
       - name: Verify APK signature
         run: |
