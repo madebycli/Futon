@@ -20,7 +20,7 @@ nodes:
   FUTON_FIX_BRANCH:
     type: branch
     value: fix/mihon-uncaught-exception-interceptor
-    live_observed_head_before_context_refresh: 6d265a6d47fd08da332234335b559b3fc0c9aae1
+    live_observed_head_before_context_refresh: b183ae48d0bde850509bab7f96b4786c54975f3f
     source_head: d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32
     note: "Context-only commits advance branch head; source_head remains the last meaningful app-source change until code changes again."
 
@@ -47,6 +47,7 @@ nodes:
     focused_verify: success
     signed_release: success
     debug_build: success
+    live_verified_at: 2026-08-26
     status: current_for_meaningful_source_head
 
   DEVICE_PRE_D5:
@@ -130,6 +131,14 @@ nodes:
     license: Apache-2.0
     role: preferred_reference_implementation
 
+  KEIYOUSHI_EXTENSIONS_LIB:
+    type: reference_repository
+    value: keiyoushi/extensions-lib
+    branch: main
+    live_verified_sha: 18a8e26be2320b48bdaa11840170479b62989e23
+    live_verified_at: 2026-08-26
+    role: current_extension_host_contract_reference
+
   KOTO_MI_HON_DOC:
     type: reference
     repo_node: KOTOTORO_REPO
@@ -193,8 +202,16 @@ nodes:
   FUTON_CLASSLOADER:
     type: implementation
     path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/ChildFirstPathClassLoader.kt
+    source_sha: d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32
     current_behavior: "system -> child -> parent"
     assessment: "generic strategy; lacks Kototoro explicit Tachiyomi ABI ownership policy"
+
+  CLASSLOADER_COMPARISON_2026_08_26:
+    type: evidence
+    status: confirmed
+    futon_source_sha: d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32
+    kototoro_source_sha: e036c5940af6b849c055ab46d73c0ec4896276f7
+    conclusion: "Kototoro's explicit parent-owned ABI policy is generically stronger for class identity and runtime ABI failures than Futon's generic system-child-parent loader."
 
   CLASSLOADER_PORT_DECISION_2026_08_26:
     type: decision
@@ -278,6 +295,12 @@ edges:
     to: KOTO_CLASSLOADER_LEGACY_ALIAS
   - from: KOTO_CLASSLOADER_LEGACY_ALIAS
     relation: delegates_to
+    to: KOTO_CLASSLOADER_POLICY
+  - from: CLASSLOADER_COMPARISON_2026_08_26
+    relation: compares
+    to: FUTON_CLASSLOADER
+  - from: CLASSLOADER_COMPARISON_2026_08_26
+    relation: compares
     to: KOTO_CLASSLOADER_POLICY
   - from: CLASSLOADER_PORT_DECISION_2026_08_26
     relation: waits_for
