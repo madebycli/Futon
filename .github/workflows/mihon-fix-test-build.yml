@@ -187,11 +187,10 @@ jobs:
             'eu/kanade/tachiyomi/source/model/SChapter' \
             'eu/kanade/tachiyomi/source/model/Page' \
             'getMangaUpdate' \
-            'getRelatedMangaList' \
+            'fetchRelatedMangaList' \
             'getChapterList' \
             'getPageList' \
-            'fetchPageList' \
-            'getRequestTimeoutMillis'; do
+            'fetchPageList'; do
             require_dex_string "$symbol"
           done
 
