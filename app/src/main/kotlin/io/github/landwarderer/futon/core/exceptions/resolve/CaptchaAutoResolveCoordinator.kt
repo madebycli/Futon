@@ -4,7 +4,7 @@ package io.github.landwarderer.futon.core.exceptions.resolve
 
 import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.network.CloudflareHostCooldown
-import io.github.landwarderer.futon.core.network.ContentHttpClient
+import io.github.landwarderer.futon.core.network.MangaHttpClient
 import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -44,7 +44,7 @@ enum class CaptchaAutoResolveResult {
 @Singleton
 class CaptchaAutoResolveCoordinator @Inject constructor(
     private val webViewExecutor: WebViewExecutor,
-    @ContentHttpClient private val httpClient: OkHttpClient,
+    @MangaHttpClient private val httpClient: OkHttpClient,
     private val hostCooldown: CloudflareHostCooldown,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
