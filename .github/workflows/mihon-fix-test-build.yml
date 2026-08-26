@@ -44,6 +44,7 @@ jobs:
           ./gradlew testDebugUnitTest \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonModernHostContractTest" \
             --stacktrace \
             --no-build-cache \
             --no-configuration-cache
@@ -178,62 +179,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Futon-Mihon-Fix-Signed-Release
-          path: test-artifact/
+          path: test-artifact/*
           if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
-      - name: Remove keystore
-        if: always()
-        run: rm -f "$GITHUB_WORKSPACE/keystore.jks"
-
-  report:
-    name: Record test build status
-    if: always()
-    needs:
-      - verify
-      - signed-release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout tested source commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-
-      - name: Write run status
-        env:
-          RUN_ID: ${{ github.run_id }}
-          SOURCE_SHA: ${{ github.sha }}
-          VERIFY_RESULT: ${{ needs.verify.result }}
-          SIGNED_RESULT: ${{ needs.signed-release.result }}
-        run: |
-          set -euo pipefail
-          mkdir -p .ci
-          cat > .ci/mihon-fix-latest.json <<EOF
-          {
-            "run_id": "$RUN_ID",
-            "source_sha": "$SOURCE_SHA",
-            "verify": "$VERIFY_RESULT",
-            "signed_release": "$SIGNED_RESULT"
-          }
-          EOF
-
-      - name: Commit run status
-        if: github.event_name == 'push'
-        run: |
-          set -euo pipefail
-          BRANCH="fix/mihon-uncaught-exception-interceptor"
-          REMOTE_SHA="$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')"
-          if [ "$REMOTE_SHA" != "$GITHUB_SHA" ]; then
-            echo "Branch advanced from tested source $GITHUB_SHA to $REMOTE_SHA; skipping stale status commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .ci/mihon-fix-latest.json
-          git commit -m "ci: record Mihon test build status [skip ci]" || exit 0
-          git push origin HEAD:"$BRANCH"
+          retention-days: 14
