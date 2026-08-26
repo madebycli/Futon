@@ -20,16 +20,18 @@ nodes:
   FUTON_FIX_BRANCH:
     type: branch
     value: fix/mihon-uncaught-exception-interceptor
-    snapshot_head: 18231440e71c007cfe32e95373d8722658f08882
+    live_observed_head_before_context_refresh: 6d265a6d47fd08da332234335b559b3fc0c9aae1
     source_head: d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32
-    note: "snapshot_head is a CI status commit; source_head is its meaningful source parent"
+    note: "Context-only commits advance branch head; source_head remains the last meaningful app-source change until code changes again."
 
   PR_1:
     type: pull_request
     value: 1
     base: devel
     draft: true
+    state: open
     merge_allowed_without_user: false
+    live_verified_at: 2026-08-26
 
   APP_VERSION:
     type: version
@@ -45,6 +47,7 @@ nodes:
     focused_verify: success
     signed_release: success
     debug_build: success
+    status: current_for_meaningful_source_head
 
   DEVICE_PRE_D5:
     type: evidence
@@ -60,6 +63,7 @@ nodes:
   POST_D5_DEVICE_VALIDATION:
     type: unresolved_test
     status: open
+    evidence_received: false
     required_sources:
       - Comix
       - MangaDot.net
@@ -121,7 +125,7 @@ nodes:
     type: reference_repository
     value: Kototoro-app/Kototoro
     branch: devel
-    snapshot_sha: e036c5940af6b849c055ab46d73c0ec4896276f7
+    live_verified_sha: e036c5940af6b849c055ab46d73c0ec4896276f7
     version: 2.0.3
     license: Apache-2.0
     role: preferred_reference_implementation
@@ -148,11 +152,20 @@ nodes:
     type: reference
     repo_node: KOTOTORO_REPO
     path: app/src/main/kotlin/org/skepsun/kototoro/mihon/util/ChildFirstPathClassLoader.kt
+    implementation: "DexClassLoader, consults ChildFirstClassLoaderPolicy before child-first lookup"
+
+  KOTO_CLASSLOADER_LEGACY_ALIAS:
+    type: reference
+    repo_node: KOTOTORO_REPO
+    path: app/src/main/kotlin/org/skepsun/kototoro/mihon/util/ChildFirstClassLoaderPolicy.kt
+    status: deprecated_alias
+    delegates_to: KOTO_CLASSLOADER_POLICY
 
   KOTO_CLASSLOADER_POLICY:
     type: reference
     repo_node: KOTOTORO_REPO
     path: app/src/main/kotlin/org/skepsun/kototoro/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt
+    live_verified_at_sha: e036c5940af6b849c055ab46d73c0ec4896276f7
     assessment: stronger_than_current_futon_for_explicit_abi_ownership
     parent_owned_namespaces:
       - java
@@ -170,6 +183,9 @@ nodes:
       - eu.kanade.tachiyomi.network
       - eu.kanade.tachiyomi.util
       - uy.kohesive.injekt
+      - ireader.core
+      - io.ktor
+      - com.fleeksoft
     child_first_bridge_exceptions:
       - "$-CC"
       - "$DefaultImpls"
@@ -177,7 +193,13 @@ nodes:
   FUTON_CLASSLOADER:
     type: implementation
     path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/ChildFirstPathClassLoader.kt
-    assessment: "generic system-child-parent strategy; lacks Kototoro's explicit Tachiyomi ABI ownership policy"
+    current_behavior: "system -> child -> parent"
+    assessment: "generic strategy; lacks Kototoro explicit Tachiyomi ABI ownership policy"
+
+  CLASSLOADER_PORT_DECISION_2026_08_26:
+    type: decision
+    status: deferred_pending_device_evidence
+    reason: "No post-d5e10a1 device failure exists yet. Do not introduce a broad runtime behavior change without evidence, but use Kototoro policy first if the next failure is in the classloader/ABI family."
 
   KOTO_SOURCE_API:
     type: reference
@@ -202,7 +224,7 @@ nodes:
       - VerifyError
       - duplicate_API_class_identity
       - classloader_specific_ClassNotFoundException
-    action: "Compare KOTO_CLASSLOADER_POLICY first; strongly prefer exact policy port before ad-hoc class exceptions"
+    action: "Compare and preferentially port KOTO_CLASSLOADER_POLICY plus its loader integration before adding ad-hoc class exceptions"
 
   SAFETY_CONSTRAINTS:
     type: constraints
@@ -251,6 +273,15 @@ edges:
   - from: FUTON_CLASSLOADER
     relation: should_be_benchmarked_against
     to: KOTO_CLASSLOADER_POLICY
+  - from: KOTO_CLASSLOADER
+    relation: uses
+    to: KOTO_CLASSLOADER_LEGACY_ALIAS
+  - from: KOTO_CLASSLOADER_LEGACY_ALIAS
+    relation: delegates_to
+    to: KOTO_CLASSLOADER_POLICY
+  - from: CLASSLOADER_PORT_DECISION_2026_08_26
+    relation: waits_for
+    to: POST_D5_DEVICE_VALIDATION
   - from: FAILURE_CLASSLOADER_FAMILY
     relation: triggers_review_of
     to: KOTO_CLASSLOADER_POLICY
