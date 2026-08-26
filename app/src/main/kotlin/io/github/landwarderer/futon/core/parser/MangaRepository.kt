@@ -1,4 +1,4 @@
-// Slowdown contract adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Slowdown and image-request contracts adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
 // Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.core.parser
 
@@ -17,6 +17,8 @@ import io.github.landwarderer.futon.local.data.LocalMangaRepository
 import io.github.landwarderer.futon.mihon.MihonExtensionManager
 import io.github.landwarderer.futon.mihon.MihonMangaRepository
 import io.github.landwarderer.futon.mihon.model.MihonMangaSource
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.model.MangaChapter
@@ -44,6 +46,24 @@ interface MangaRepository {
     suspend fun getPageUrl(page: MangaPage): String
     suspend fun getFilterOptions(): MangaListFilterOptions
     suspend fun getRelated(seed: Manga): List<Manga>
+
+    /**
+     * Optional repository-owned image client.
+     *
+     * Mihon HttpSource implementations frequently install source-specific interceptors, cookies or
+     * TLS behavior on their own client. Returning null keeps Futon's existing shared Manga client.
+     */
+    fun getImageClient(): OkHttpClient? = null
+
+    /**
+     * Optional repository-owned page request. Returning null keeps Futon's generic image GET.
+     */
+    fun createPageRequest(pageUrl: String, page: MangaPage): Request? = null
+
+    /**
+     * Optional repository-owned cover request. Returning null keeps Futon's generic image GET.
+     */
+    fun createCoverRequest(imageUrl: String): Request? = null
 
     /**
      * Whether downloader requests for this repository should respect the configured per-source
