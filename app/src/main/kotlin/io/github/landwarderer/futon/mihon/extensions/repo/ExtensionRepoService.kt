@@ -40,7 +40,6 @@ class ExtensionRepoService @Inject constructor(
     }
 
     private fun applyMirror(input: String): String {
-        // raw.github.com has been retired. Treat it only as a legacy stored value.
         val url = input.replace("https://raw.github.com/", "https://raw.githubusercontent.com/")
         if (url.startsWith("https://raw.githubusercontent.com/")) {
             return when (settings.gitHubMirror) {
@@ -146,9 +145,7 @@ class ExtensionRepoService @Inject constructor(
         runCatching { fetchAvailableExtensionsOrThrow(repo) }.getOrDefault(emptyList())
 
     suspend fun fetchAvailableExtensionsOrThrow(repo: ExternalExtensionRepo): List<RepoAvailableExtension> {
-        if (isProtobufIndexUrl(repo.baseUrl)) {
-            return fetchProtobufExtensions(repo, repo.baseUrl)
-        }
+        if (isProtobufIndexUrl(repo.baseUrl)) return fetchProtobufExtensions(repo, repo.baseUrl)
 
         val startedAt = System.currentTimeMillis()
         Log.d(TAG, "fetchAvailableExtensions:start type=${repo.type} baseUrl=${repo.baseUrl}")
@@ -168,11 +165,9 @@ class ExtensionRepoService @Inject constructor(
             val extensions = withTimeout(CATALOG_TIMEOUT_MS) {
                 val body = httpClient.newCall(GET(requestUrl)).awaitSuccess().use { response -> response.body.string() }
                 if (repo.type == ExternalExtensionType.IREADER) {
-                    json.decodeFromString<List<IReaderExtensionIndexDto>>(body)
-                        .map { it.toAvailableExtension(repo) }
+                    json.decodeFromString<List<IReaderExtensionIndexDto>>(body).map { it.toAvailableExtension(repo) }
                 } else {
-                    json.decodeFromString<List<ExtensionIndexDto>>(body)
-                        .mapNotNull { it.toAvailableExtension(repo) }
+                    json.decodeFromString<List<ExtensionIndexDto>>(body).mapNotNull { it.toAvailableExtension(repo) }
                 }
             }
             Log.d(TAG, "fetchAvailableExtensions:success (json) type=${repo.type} baseUrl=${repo.baseUrl} count=${extensions.size} elapsedMs=${System.currentTimeMillis() - startedAt}")
@@ -190,7 +185,6 @@ class ExtensionRepoService @Inject constructor(
             .toHttpUrlOrNull() ?: return null
         if (url.scheme != "https") return null
 
-        // Accept copied GitHub raw/tree/blob URLs and convert them to the stable raw host.
         if (url.host == "github.com") {
             val segments = url.pathSegments.filter { it.isNotEmpty() }
             if (segments.size >= 3 && segments[2] in setOf("raw", "tree", "blob", "refs")) {
@@ -228,10 +222,7 @@ class ExtensionRepoService @Inject constructor(
         return normalized.removeSuffix("/index.min.json").removeSuffix("/repo.json")
     }
 
-    private suspend fun fetchProtobufExtensions(
-        repo: ExternalExtensionRepo,
-        indexUrl: String,
-    ): List<RepoAvailableExtension> {
+    private suspend fun fetchProtobufExtensions(repo: ExternalExtensionRepo, indexUrl: String): List<RepoAvailableExtension> {
         val startedAt = System.currentTimeMillis()
         Log.d(TAG, "fetchAvailableExtensions:trying protobuf url=$indexUrl")
         return try {
@@ -255,30 +246,20 @@ class ExtensionRepoService @Inject constructor(
         }
     }
 
-    private suspend fun fetchExtensionStoreIndex(indexUrl: String): NetworkExtensionStoreDto {
-        val bytes = fetchProtobufBytes(indexUrl)
-        return protoBuf.decodeFromByteArray(bytes)
-    }
+    private suspend fun fetchExtensionStoreIndex(indexUrl: String): NetworkExtensionStoreDto =
+        protoBuf.decodeFromByteArray(fetchProtobufBytes(indexUrl))
 
-    private suspend fun fetchExtensionList(listUrl: String): ExtensionListDto {
-        val bytes = fetchProtobufBytes(listUrl)
-        return protoBuf.decodeFromByteArray(bytes)
-    }
+    private suspend fun fetchExtensionList(listUrl: String): ExtensionListDto =
+        protoBuf.decodeFromByteArray(fetchProtobufBytes(listUrl))
 
     private suspend fun fetchProtobufBytes(url: String): ByteArray {
         val raw = httpClient.newCall(GET(applyMirror(url))).awaitSuccess().use { it.body.bytes() }
         return if (raw.size >= 2 && raw[0] == 0x1f.toByte() && raw[1] == 0x8b.toByte()) {
             GZIPInputStream(ByteArrayInputStream(raw)).use { it.readBytes() }
-        } else {
-            raw
-        }
+        } else raw
     }
 
-    private fun repoFromStoreIndex(
-        indexUrl: String,
-        type: ExternalExtensionType,
-        index: NetworkExtensionStoreDto,
-    ): ExternalExtensionRepo {
+    private fun repoFromStoreIndex(indexUrl: String, type: ExternalExtensionType, index: NetworkExtensionStoreDto): ExternalExtensionRepo {
         val now = System.currentTimeMillis()
         return ExternalExtensionRepo(
             type = type,
@@ -309,8 +290,8 @@ class ExtensionRepoService @Inject constructor(
             ext.name.contains("Update to Mihon", ignoreCase = true)
 
     private fun ExtensionDto.toAvailableExtension(repo: ExternalExtensionRepo, indexUrl: String): RepoAvailableExtension? {
-        val libVersion = extensionLib.substringBeforeLast('.', extensionLib).toDoubleOrNull()
-            ?: extensionLib.toDoubleOrNull()
+        val libVersion = extensionLib.toDoubleOrNull()
+            ?: extensionLib.substringBeforeLast('.').toDoubleOrNull()
             ?: return null
         val supported = when (repo.type) {
             ExternalExtensionType.MIHON -> libVersion in MihonExtensionLoader.LIB_VERSION_MIN..MihonExtensionLoader.LIB_VERSION_MAX
@@ -339,7 +320,6 @@ class ExtensionRepoService @Inject constructor(
             lang = languages.singleOrNull() ?: "all",
             isNsfw = contentWarning >= 2,
             sourceNames = sources.map { it.name },
-            // Installer accepts absolute URLs, so keep the canonical protobuf resource URL intact.
             apkName = apkUrl,
             iconUrl = iconUrl,
             repoUrl = repo.baseUrl,
@@ -407,15 +387,10 @@ class ExtensionRepoService @Inject constructor(
         )
     }
 
-    @Keep
-    @Serializable
-    private data class RepoMetaWrapperDto(
-        @SerialName("index_v2") val indexV2: String? = null,
-        val meta: RepoMetaDto,
-    )
+    @Keep @Serializable
+    private data class RepoMetaWrapperDto(@SerialName("index_v2") val indexV2: String? = null, val meta: RepoMetaDto)
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class RepoMetaDto(
         val name: String,
         @SerialName("shortName") val shortName: String? = null,
@@ -423,8 +398,7 @@ class ExtensionRepoService @Inject constructor(
         @SerialName("signingKeyFingerprint") val signingKeyFingerprint: String,
     )
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class ExtensionIndexDto(
         val name: String,
         val pkg: String,
@@ -436,12 +410,10 @@ class ExtensionRepoService @Inject constructor(
         val sources: List<ExtensionSourceDto>? = null,
     )
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class ExtensionSourceDto(val name: String)
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class IReaderExtensionIndexDto(
         val name: String = "",
         val pkg: String = "",
@@ -452,8 +424,7 @@ class ExtensionRepoService @Inject constructor(
         val nsfw: Boolean = false,
     )
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class NetworkExtensionStoreDto(
         @ProtoNumber(1) val name: String = "",
         @ProtoNumber(2) val badgeLabel: String = "",
@@ -463,21 +434,16 @@ class ExtensionRepoService @Inject constructor(
         @ProtoNumber(102) val extensionListUrl: String? = null,
     )
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class ContactDto(
         @ProtoNumber(1) val website: String = "",
         @ProtoNumber(2) val discord: String? = null,
     )
 
-    @Keep
-    @Serializable
-    private data class ExtensionListDto(
-        @ProtoNumber(1) val extensions: List<ExtensionDto> = emptyList(),
-    )
+    @Keep @Serializable
+    private data class ExtensionListDto(@ProtoNumber(1) val extensions: List<ExtensionDto> = emptyList())
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class ExtensionDto(
         @ProtoNumber(1) val name: String = "",
         @ProtoNumber(2) val packageName: String = "",
@@ -489,15 +455,13 @@ class ExtensionRepoService @Inject constructor(
         @ProtoNumber(8) val sources: List<SourceDto> = emptyList(),
     )
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class ResourcesDto(
         @ProtoNumber(1) val apkUrl: String = "",
         @ProtoNumber(2) val iconUrl: String = "",
     )
 
-    @Keep
-    @Serializable
+    @Keep @Serializable
     private data class SourceDto(
         @ProtoNumber(1) val id: Long = 0L,
         @ProtoNumber(2) val name: String = "",
