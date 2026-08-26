@@ -4,6 +4,7 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
+import io.github.landwarderer.futon.core.parser.MangaRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
@@ -20,6 +21,16 @@ class MihonSourceApiCompatTest {
         assertTrue(method.parameterTypes.any { it.name == "kotlin.coroutines.Continuation" })
         assertEquals(SManga::class.java, SMangaUpdate::class.java.getMethod("getManga").returnType)
         assertEquals(List::class.java, SMangaUpdate::class.java.getMethod("getChapters").returnType)
+    }
+
+    @Test
+    fun repositoryExposesMihonImageCompatibilityHooks() {
+        val methodNames = MangaRepository::class.java.methods.mapTo(mutableSetOf()) { it.name }
+
+        assertTrue(methodNames.contains("imageRequestClient"))
+        assertTrue(methodNames.contains("buildPageRequest"))
+        assertTrue(methodNames.contains("buildCoverRequest"))
+        assertTrue(methodNames.contains("fetchPageResponse"))
     }
 
     @Test
