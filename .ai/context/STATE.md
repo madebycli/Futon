@@ -8,9 +8,9 @@ Last manually refreshed: 2026-08-26
 - Working branch: `fix/mihon-uncaught-exception-interceptor`
 - Base branch: `devel`
 - Draft PR: #1 — `Fix Keiyoushi/Mihon default network interceptor compatibility`
-- Live-observed branch head before this context refresh: `6d265a6d47fd08da332234335b559b3fc0c9aae1`
+- Live-observed branch head before this context refresh: `b183ae48d0bde850509bab7f96b4786c54975f3f`
 - Last meaningful source-change head: `d5e10a1d6b7dd69b45c4e7d953fa2f14f3e7ec32`
-- `6d265a6...` is context-only and descends from the prior CI-status/context commits; the meaningful app source remains `d5e10a1...`.
+- `b183ae48...` is context-only and descends from the prior CI-status/context commits; the meaningful app source remains `d5e10a1...`.
 - App version under test: Futon `9.8.1`
 - Debug application id: `io.github.landwarderer.futon.debug`
 - Host baseline now matches current Mihon/Keiyoushi: `minSdk = 26`.
@@ -20,12 +20,14 @@ Always re-fetch these values before work because context-refresh commits advance
 ## Live verification, 2026-08-26
 
 - PR #1 is still open and `draft: true`, base `devel`, head branch `fix/mihon-uncaught-exception-interceptor`.
-- Futon live head observed before this context refresh: `6d265a6d47fd08da332234335b559b3fc0c9aae1`.
+- Futon live head observed before this context refresh: `b183ae48d0bde850509bab7f96b4786c54975f3f`.
 - Current Kototoro `devel` head remains `e036c5940af6b849c055ab46d73c0ec4896276f7` (v2.0.3).
+- Current Keiyoushi `extensions-lib` main head is `18a8e26be2320b48bdaa11840170479b62989e23`.
 - No post-`d5e10a1` device result has been supplied yet, so `POST_D5_DEVICE_VALIDATION` remains the highest-priority unresolved node.
-- Current Kototoro Mihon `ChildFirstPathClassLoader` delegates parent-owned ABI classes through `ChildFirstClassLoaderPolicy`, which is now only a legacy alias for the shared `TachiyomiApkClassLoaderPolicy`.
+- Current Kototoro Mihon `ChildFirstPathClassLoader` delegates parent-owned ABI classes through `ChildFirstClassLoaderPolicy`, which is a legacy alias for the shared `TachiyomiApkClassLoaderPolicy`.
 - The shared Kototoro policy explicitly parent-loads Java/Kotlin/Android, coroutines, OkHttp/Okio, Rx, Tachiyomi source/network/util APIs, Injekt and related host ABI namespaces, while `$-CC` and `$DefaultImpls` bridge artifacts remain child-first.
 - Futon's current `ChildFirstPathClassLoader` still uses generic system -> child -> parent loading and does not encode this ABI ownership policy.
+- Direct source comparison at Kototoro `e036c594...` and Futon source `d5e10a1...` re-confirms that Kototoro's policy is the stronger generic design for class-identity/ABI failures.
 - Decision for this round: do not port the policy without fresh post-`d5e10a1` device evidence. If the next log contains `AbstractMethodError`, `NoSuchMethodError`, `IncompatibleClassChangeError`, `ClassCastException`, `VerifyError`, duplicate host/extension ABI classes, or classloader-specific `ClassNotFoundException`, port Kototoro's shared policy and Mihon loader behavior preferentially instead of adding one-off exceptions.
 
 ## Latest CI state
@@ -37,7 +39,7 @@ Always re-fetch these values before work because context-refresh commits advance
 - focused Mihon verification: `success`
 - signed optimized release test build: `success`
 
-The full debug build for the same source head succeeded in workflow run `32948738540`. Live Actions history still shows successful Debug Build and Mihon signed-test runs for `d5e10a1...`; context-only commits intentionally use `[skip ci]`.
+Live Actions verification confirms run `32948732345` completed successfully for `d5e10a1...`. The full debug build for the same source head succeeded in workflow run `32948738540`. Context-only commits intentionally use `[skip ci]`.
 
 ## Historical device evidence before d5e10a1
 
