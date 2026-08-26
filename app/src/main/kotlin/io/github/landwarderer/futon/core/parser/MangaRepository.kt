@@ -1,4 +1,4 @@
-// Slowdown and image-request contracts adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Slowdown and image-request contracts adapted from Kototoro at c1128b91140053b081cc7453c87a16f52ab2f12a.
 // Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.core.parser
 
@@ -16,9 +16,11 @@ import io.github.landwarderer.futon.core.parser.external.ExternalMangaSource
 import io.github.landwarderer.futon.local.data.LocalMangaRepository
 import io.github.landwarderer.futon.mihon.MihonExtensionManager
 import io.github.landwarderer.futon.mihon.MihonMangaRepository
+import io.github.landwarderer.futon.mihon.fetchNativePageResponse
 import io.github.landwarderer.futon.mihon.model.MihonMangaSource
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.koitharu.kotatsu.parsers.MangaLoaderContext
 import org.koitharu.kotatsu.parsers.model.Manga
 import org.koitharu.kotatsu.parsers.model.MangaChapter
@@ -66,6 +68,15 @@ interface MangaRepository {
      */
     fun buildCoverRequest(imageUrl: String): Request? =
         (this as? MihonMangaRepository)?.createCoverRequest(imageUrl)
+
+    /**
+     * Optional native page execution path.
+     *
+     * Mihon HttpSource may override getImage(Page) with token refresh, request rewriting or retry
+     * behavior that cannot be preserved by merely reconstructing a Request in the host.
+     */
+    suspend fun fetchPageResponse(pageUrl: String, page: MangaPage): Response? =
+        (this as? MihonMangaRepository)?.fetchNativePageResponse(pageUrl, page)
 
     /**
      * Whether downloader requests for this repository should respect the configured per-source
