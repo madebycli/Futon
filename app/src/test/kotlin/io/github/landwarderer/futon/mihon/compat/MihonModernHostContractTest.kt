@@ -6,7 +6,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
-import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
+import io.github.landwarderer.futon.mihon.model.contentSource
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -113,9 +113,7 @@ class MihonModernHostContractTest {
 
     @Test
     fun declaredBaseUrlCreatesBrowserAuthorityForMihonRequest() {
-        val source = object : ContentSource {
-            override val name: String = "MIHON_123"
-        }
+        val source = contentSource("MIHON_123")
         val context = SourceRequestContext.from(source, "https://example.org/path")
 
         assertTrue(context.allowsBrowserRequest("https://example.org/challenge"))
