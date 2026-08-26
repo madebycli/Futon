@@ -80,19 +80,17 @@ class MihonNetworkHelper(
             ),
         )
 
+        // Keep construction side-effect free. These filters are also exercised by plain JVM
+        // regression tests where android.util.Log is intentionally unavailable.
         baseClient.interceptors.forEach { interceptor ->
             if (isCompatibleInterceptor(interceptor) && !isDefaultMihonInterceptor(interceptor)) {
                 builder.addInterceptor(interceptor)
-            } else {
-                Log.d("MihonNetworkHelper", "Skipping ${interceptor.javaClass.simpleName} for Mihon client")
             }
         }
 
         baseClient.networkInterceptors.forEach { interceptor ->
             if (isCompatibleInterceptor(interceptor)) {
                 builder.addNetworkInterceptor(interceptor)
-            } else {
-                Log.d("MihonNetworkHelper", "Skipping ${interceptor.javaClass.simpleName} for Mihon client")
             }
         }
 
