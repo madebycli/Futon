@@ -36,12 +36,17 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Run Mihon regression tests
-        run: >-
-          ./gradlew testDebugUnitTest
-          --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest"
-          --stacktrace
-          --no-build-cache
-          --no-configuration-cache
+        run: |
+          set -euo pipefail
+          # Current Mihon and Keiyoushi both require API 26. Keeping the host below that level
+          # re-enables D8 interface desugaring and breaks serializers loaded later from extension APKs.
+          grep -Eq '^[[:space:]]*minSdk = 26$' app/build.gradle
+          ./gradlew testDebugUnitTest \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
+            --stacktrace \
+            --no-build-cache \
+            --no-configuration-cache
 
       - name: Run release lint (diagnostic)
         id: release_lint
