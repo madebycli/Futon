@@ -44,7 +44,13 @@ class MihonInjektBridge(
         if (initialized) return
 
         try {
-            val networkHelper = MihonNetworkHelper(httpClient, cookieJar, webViewExecutor)
+            // Extension-owned image/token paths may construct fresh Requests without copying the
+            // source tag. Add the same request-context recovery invariant Kototoro relies on before
+            // handing the client to the Mihon NetworkHelper.
+            val contextualHttpClient = httpClient.newBuilder()
+                .addInterceptor(MihonSourceContextInterceptor())
+                .build()
+            val networkHelper = MihonNetworkHelper(contextualHttpClient, cookieJar, webViewExecutor)
             Log.d(
                 "MihonInjektBridge",
                 "Creating MihonNetworkHelper with webViewExecutorPresent=${webViewExecutor != null}",
@@ -56,7 +62,7 @@ class MihonInjektBridge(
                     addSingletonFactory<Context> { context.applicationContext }
 
                     addSingletonFactory<NetworkHelper> { networkHelper }
-                    addSingletonFactory<OkHttpClient> { httpClient }
+                    addSingletonFactory<OkHttpClient> { contextualHttpClient }
                     addSingletonFactory<CookieJar> { cookieJar }
 
                     addSingletonFactory<SharedPreferences> {
