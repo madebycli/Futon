@@ -25,12 +25,24 @@
 -keep class org.jsoup.parser.Tag
 -keep class org.jsoup.internal.StringUtil
 
-# Mihon/Tachiyomi extension rules
-# Disable shrinking and optimization for the core bridge to ensure ClassLoaders and Injekt work perfectly.
+# Mihon / Tachiyomi extension support.
+# Dynamically loaded extension APKs call this host surface from outside R8's static graph.
+-keepattributes Signature
+-keepattributes Annotation
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations
+-keepattributes RuntimeVisibleParameterAnnotations
+-keepattributes AnnotationDefault
+-keepattributes kotlin.Metadata
 
 -keep class eu.kanade.tachiyomi.** { *; }
 -keep interface eu.kanade.tachiyomi.** { *; }
 -keeppackagenames eu.kanade.tachiyomi.**
+-keepclassmembers class eu.kanade.tachiyomi.** {
+    public <init>(...);
+    public protected *;
+}
 
 -keep class uy.kohesive.injekt.** { *; }
 -keep interface uy.kohesive.injekt.** { *; }
@@ -39,39 +51,76 @@
 
 -keep class io.github.landwarderer.futon.mihon.** { *; }
 -keeppackagenames io.github.landwarderer.futon.mihon.**
+-keepclassmembers class io.github.landwarderer.futon.mihon.** {
+    public <init>(...);
+    public protected *;
+}
 
-# Keep everything related to dynamic loading
+# Dynamic class loading.
 -keep class io.github.landwarderer.futon.mihon.ChildFirstPathClassLoader { *; }
 -keep public class * extends dalvik.system.PathClassLoader { *; }
 -keep public class * extends dalvik.system.BaseDexClassLoader { *; }
+-keep class dalvik.system.** { *; }
+-dontwarn dalvik.system.**
 
-# Critical attributes for Kotlin reflection and Injekt
--keepattributes Signature, InnerClasses, EnclosingMethod, AnnotationDefault, *Annotation*, kotlin.Metadata, RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
-
-# Keep Kotlin Metadata class itself
 -keep class kotlin.Metadata { *; }
-
-# Prevent stripping of extension entry points in the app
 -keep public class * implements eu.kanade.tachiyomi.source.Source
 -keep public class * implements eu.kanade.tachiyomi.source.SourceFactory
 
-# Keep common libraries used by extensions
+# OkHttp / Okio are part of the parent-owned extension runtime.
 -keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+-keepclassmembers class okhttp3.** {
+    public <init>(...);
+}
 -keep class okio.** { *; }
+-keep interface okio.** { *; }
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# Common extension libraries that may only be referenced from an external APK.
 -keep class org.jsoup.** { *; }
 -keep class rx.** { *; }
+-keep interface rx.** { *; }
+-dontwarn rx.**
+-keep class io.reactivex.** { *; }
+-keep interface io.reactivex.** { *; }
+-dontwarn io.reactivex.**
+-keep class com.google.gson.** { *; }
+
+# QuickJS compatibility. Futon already ships the QuickJS runtime, but extension calls are dynamic.
+-keep class app.cash.quickjs.** { *; }
+-keep interface app.cash.quickjs.** { *; }
+-keepclassmembers class app.cash.quickjs.** {
+    public <init>(...);
+    public protected *;
+}
+-keep class com.dokar.quickjs.** { *; }
+-keep interface com.dokar.quickjs.** { *; }
+-keepclassmembers class com.dokar.quickjs.** {
+    public <init>(...);
+    public protected *;
+}
+
+# kotlinx.serialization is frequently reached through generated serializers in extension APKs.
 -keep class kotlinx.serialization.** { *; }
--keep class kotlin.** { *; }
--keep class kotlinx.coroutines.** { *; }
--keeppackagenames okhttp3.**, okio.**, org.jsoup.**, rx.**, kotlinx.serialization.**, kotlin.**, kotlinx.coroutines.**
+-keepclassmembers class kotlinx.serialization.** { *; }
+-keepclasseswithmembers class * {
+    @kotlinx.serialization.Serializable <methods>;
+}
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    *** Companion;
+}
+-keepclassmembers class **$$serializer {
+    *** INSTANCE;
+}
+-dontwarn kotlinx.serialization.**
 
 # zstd-kmp resolves these classes from native code via JNI FindClass.
-# Ported from Kototoro's Mihon runtime rules. R8 cannot infer the native-only reachability.
 -keep class com.squareup.zstd.** { *; }
 -keep interface com.squareup.zstd.** { *; }
 
-# AndroidX Preference is part of ConfigurableSource's externally invoked ABI.
-# Extension APKs construct preference classes and call members the host may not reference directly.
+# AndroidX Preference is ConfigurableSource's externally invoked ABI.
 -keep class androidx.preference.** { *; }
 -keep interface androidx.preference.** { *; }
 -keepclassmembers class androidx.preference.** {
@@ -79,11 +128,18 @@
     public protected *;
 }
 
-# SharedPreferences is used by ConfigurableSource and extension preference screens.
+# Application/SharedPreferences are resolved directly through Injekt by extensions.
+-keep class android.app.Application { *; }
+-keepclassmembers class * extends android.app.Application {
+    public <init>(...);
+}
 -keep class android.content.SharedPreferences { *; }
 -keep interface android.content.SharedPreferences$** { *; }
 
-# Keep Kotlin standard library facades and internal classes often used by extensions
+# Kotlin runtime and reflection are part of the dynamic extension ABI.
+-keep class kotlin.** { *; }
+-keep interface kotlin.** { *; }
+-dontwarn kotlin.**
 -keep class kotlin.LazyKt** { *; }
 -keep class kotlin.collections.CollectionsKt** { *; }
 -keep class kotlin.sequences.SequencesKt** { *; }
@@ -92,9 +148,11 @@
 -keep class kotlin.io.FilesKt** { *; }
 -keep class kotlin.jvm.internal.** { *; }
 -keep class kotlin.jvm.functions.** { *; }
+-keep class kotlin.reflect.** { *; }
+-dontwarn kotlin.reflect.**
 
-# Suppress warnings
+-keep class kotlinx.coroutines.** { *; }
+-dontwarn kotlinx.coroutines.**
+
 -dontwarn uy.kohesive.injekt.**
 -dontwarn eu.kanade.tachiyomi.**
--dontwarn kotlinx.serialization.**
--dontwarn kotlin.reflect.**
