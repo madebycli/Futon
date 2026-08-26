@@ -104,7 +104,7 @@ class ParserMangaRepository(
 		return parser.configKeyDomain.presetValues.toList()
 	}
 
-	fun isSlowdownEnabled(): Boolean {
+	override fun isSlowdownEnabled(): Boolean {
 		return getConfig().isSlowdownEnabled
 	}
 

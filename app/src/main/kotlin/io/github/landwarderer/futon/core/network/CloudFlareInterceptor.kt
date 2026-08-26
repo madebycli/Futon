@@ -57,7 +57,10 @@ class CloudFlareInterceptor : Interceptor {
 
             CloudFlareHelper.PROTECTION_CAPTCHA -> response.closeThrowing(
                 CloudFlareProtectedException(
-                    url = CloudFlareHelper.getBrowserChallengeUrl(request.url.toString()),
+                    // Futon's parser runtime does not expose Kototoro's newer
+                    // CloudFlareHelper.getBrowserChallengeUrl() helper. Keep the device-proven
+                    // Futon challenge URL behavior while retaining the richer replay context.
+                    url = request.url.toString(),
                     source = request.tag(MangaSource::class.java),
                     headers = request.headers,
                     method = request.method,
