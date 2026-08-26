@@ -130,10 +130,18 @@ class MihonMangaRepository(
     override suspend fun getDetailsImpl(manga: Manga): Manga = withContext(Dispatchers.IO) {
         val content = manga.toContent(source)
         val sContent = content.toMihonManga()
-        
-        val details = try {
+
+        // extensions-lib 1.6 sources such as current Keiyoushi KeiSource implementations own
+        // the combined details/chapter update path. Calling getMangaDetails/getChapterList
+        // separately falls through their intentionally unsupported legacy request APIs.
+        val update = try {
             rethrowMihonWrappedExceptions {
-                mihonSource.getMangaDetails(sContent)
+                mihonSource.getMangaUpdate(
+                    manga = sContent,
+                    chapters = emptyList(),
+                    fetchDetails = true,
+                    fetchChapters = true,
+                )
             }
         } catch (e: Exception) {
             val ioException = when {
@@ -141,37 +149,24 @@ class MihonMangaRepository(
                 e.cause is java.io.IOException -> e.cause as java.io.IOException
                 else -> null
             }
-            
+
             if (ioException != null) {
                 kotlinx.coroutines.delay(500)
                 rethrowMihonWrappedExceptions {
-                    mihonSource.getMangaDetails(sContent)
+                    mihonSource.getMangaUpdate(
+                        manga = sContent,
+                        chapters = emptyList(),
+                        fetchDetails = true,
+                        fetchChapters = true,
+                    )
                 }
             } else {
                 throw e
             }
         }
-        
-        val rawChapters = try {
-            rethrowMihonWrappedExceptions {
-                mihonSource.getChapterList(sContent)
-            }
-        } catch (e: Exception) {
-            val ioException = when {
-                e is java.io.IOException -> e
-                e.cause is java.io.IOException -> e.cause as java.io.IOException
-                else -> null
-            }
-            
-            if (ioException != null) {
-                kotlinx.coroutines.delay(500)
-                rethrowMihonWrappedExceptions {
-                    mihonSource.getChapterList(sContent)
-                }
-            } else {
-                throw e
-            }
-        }
+
+        val details = update.manga
+        val rawChapters = update.chapters
         
         val chapters = rawChapters.asReversed()
             .mapIndexed { index, sChapter ->
