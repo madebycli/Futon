@@ -43,7 +43,10 @@ class ExtensionInstallService @Inject constructor(
 				GitHubMirror.KKGITHUB -> url.replace("raw.githubusercontent.com", "raw.kkgithub.com")
 				GitHubMirror.GHPROXY -> "https://mirror.ghproxy.com/$url"
 				GitHubMirror.GHPROXY_NET -> "https://ghproxy.net/$url"
-				GitHubMirror.KEIYOUSHI -> url.replace("raw.githubusercontent.com", "raw.github.com")
+				// The historical raw.github.com endpoint is retired. Keep the legacy option as
+				// a compatibility alias for GitHub's canonical raw host instead of generating
+				// an unusable download URL.
+				GitHubMirror.KEIYOUSHI -> url
 			}
 		}
 		if (url.startsWith("https://github.com/")) {
