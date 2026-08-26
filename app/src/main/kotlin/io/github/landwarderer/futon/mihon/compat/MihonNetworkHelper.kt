@@ -1,3 +1,5 @@
+// Adapted from Kototoro KotoNetworkHelper at c1128b91140053b081cc7453c87a16f52ab2f12a.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.mihon.compat
 
 import android.os.Looper
@@ -22,12 +24,13 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.brotli.BrotliInterceptor
+import okhttp3.zstd.Zstd
 import org.koitharu.kotatsu.parsers.model.MangaSource
 import java.io.IOException
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 /**
  * Implementation of Mihon's NetworkHelper interface.
@@ -35,11 +38,9 @@ import java.util.concurrent.TimeUnit
  * Wraps App's existing OkHttpClient to provide Mihon extensions with
  * access to the network stack, including CloudFlare bypassing and cookie management.
  *
- * Note: We create a new client without GZipInterceptor because Mihon extensions
- * handle their own request encoding. App's GZipInterceptor incorrectly
- * adds Content-Encoding: gzip header without actually compressing the body,
- * which causes server-side decompression errors (e.g., Picacomic login fails with
- * "incorrect header check").
+ * The host client is preserved so proxy, TLS, DNS, cache, authenticators, dispatcher,
+ * connection pool, and every other OkHttp setting survive. Only the interceptor lists are
+ * rebuilt because Mihon/Keiyoushi sources own their response-compression contract.
  */
 class MihonNetworkHelper(
     baseClient: OkHttpClient,
@@ -47,30 +48,22 @@ class MihonNetworkHelper(
     private val webViewExecutor: WebViewExecutor? = null,
 ) : NetworkHelper() {
 
+    // Dynamically loaded extensions reference this class outside the app's static dex graph.
+    private val zstdRuntimeDependency = Zstd
+
     /**
-     * The OkHttpClient for Mihon extensions.
-     * We rebuild without GZipInterceptor to prevent incorrect Content-Encoding headers.
+     * The OkHttpClient for current Mihon/Keiyoushi extensions.
      *
-     * The first three application interceptors deliberately use Mihon's expected class
-     * names. Current Keiyoushi sources validate these names on the default client before
-     * applying source-specific configuration. They also reject legacy IgnoreGzip/Brotli
-     * network interceptors, so those are deliberately excluded when copying the base stack.
+     * The first three application interceptors deliberately use Mihon's expected class names.
+     * Current Keiyoushi sources validate these names on the default client before applying
+     * source-specific configuration. Compression interceptors are deliberately excluded.
      */
     override val client: OkHttpClient = run {
-        val builder = OkHttpClient.Builder()
-
-        // Copy configuration from base client.
-        builder.connectTimeout(baseClient.connectTimeoutMillis.toLong(), TimeUnit.MILLISECONDS)
-        builder.readTimeout(baseClient.readTimeoutMillis.toLong(), TimeUnit.MILLISECONDS)
-        builder.writeTimeout(baseClient.writeTimeoutMillis.toLong(), TimeUnit.MILLISECONDS)
-        builder.cookieJar(baseClient.cookieJar)
-        builder.dns(baseClient.dns)
-        builder.cache(baseClient.cache)
-        builder.dispatcher(baseClient.dispatcher)
-        builder.connectionPool(baseClient.connectionPool)
-        builder.followRedirects(baseClient.followRedirects)
-        builder.followSslRedirects(baseClient.followSslRedirects)
-        builder.retryOnConnectionFailure(baseClient.retryOnConnectionFailure)
+        val builder = baseClient.newBuilder().apply {
+            interceptors().clear()
+            networkInterceptors().clear()
+            cookieJar(cookieJar)
+        }
 
         // Match Mihon's default application interceptor contract. Keep the uncaught-exception
         // wrapper first so unchecked failures from extensions become ordinary IO failures.
@@ -89,37 +82,26 @@ class MihonNetworkHelper(
 
         // Copy app interceptors while excluding handlers replaced by the compatibility chain.
         baseClient.interceptors.forEach { interceptor ->
-            when {
-                interceptor.javaClass.simpleName == "GZipInterceptor" -> {
-                    Log.d("MihonNetworkHelper", "Skipping GZipInterceptor for Mihon client")
-                }
-
-                interceptor is FutonCloudFlareInterceptor -> {
-                    Log.d(
-                        "MihonNetworkHelper",
-                        "Replacing Futon CloudFlareInterceptor with Mihon WebView resolver",
-                    )
-                }
-
-                interceptor.javaClass.simpleName in MIHON_COMPAT_INTERCEPTOR_NAMES -> {
-                    // Avoid duplicate compatibility interceptors if the base stack starts
-                    // providing them in the future.
-                    Log.d(
-                        "MihonNetworkHelper",
-                        "Skipping duplicate ${interceptor.javaClass.simpleName}",
-                    )
-                }
-
-                else -> builder.addInterceptor(interceptor)
+            if (isCompatibleInterceptor(interceptor) && !isDefaultMihonInterceptor(interceptor)) {
+                builder.addInterceptor(interceptor)
+            } else {
+                Log.d(
+                    "MihonNetworkHelper",
+                    "Skipping ${interceptor.javaClass.simpleName} for Mihon client",
+                )
             }
         }
 
-        // Current Keiyoushi KeiSource rejects the legacy Mihon network compression interceptors
-        // before it applies source-specific configuration. Preserve unrelated Futon network
-        // interceptors, but never leak those forbidden defaults into the compatibility client.
+        // Current Keiyoushi KeiSource rejects legacy compression interceptors before it applies
+        // source-specific configuration. Preserve every unrelated host network interceptor.
         baseClient.networkInterceptors.forEach { interceptor ->
-            if (interceptor.javaClass.simpleName !in MIHON_FORBIDDEN_NETWORK_INTERCEPTOR_NAMES) {
+            if (isCompatibleInterceptor(interceptor)) {
                 builder.addNetworkInterceptor(interceptor)
+            } else {
+                Log.d(
+                    "MihonNetworkHelper",
+                    "Skipping ${interceptor.javaClass.simpleName} for Mihon client",
+                )
             }
         }
 
@@ -242,11 +224,26 @@ class MihonNetworkHelper(
         builder.build()
     }
 
+    private fun isCompatibleInterceptor(interceptor: Interceptor): Boolean {
+        return interceptor !== BrotliInterceptor &&
+            interceptor.javaClass.simpleName != "GZipInterceptor" &&
+            interceptor.javaClass.simpleName != "IgnoreGzipInterceptor" &&
+            interceptor !is FutonCloudFlareInterceptor
+    }
+
+    private fun isDefaultMihonInterceptor(interceptor: Interceptor): Boolean {
+        return interceptor.javaClass.simpleName in MIHON_COMPAT_INTERCEPTOR_NAMES
+    }
+
     /**
-     * @deprecated Since extension-lib 1.5, CloudFlare is handled by the regular client.
+     * Compatibility client for legacy Mihon sources that relied on Mihon's pre-1.6 default
+     * Brotli network interceptor. KeiSource continues to use [client], which intentionally
+     * omits Brotli and installs its own compression contract.
      */
     @Deprecated("The regular client handles Cloudflare by default")
-    override val cloudflareClient: OkHttpClient = client
+    override val cloudflareClient: OkHttpClient = client.newBuilder()
+        .addNetworkInterceptor(BrotliInterceptor)
+        .build()
 
     /**
      * Returns the default user agent string.
@@ -448,10 +445,6 @@ class MihonNetworkHelper(
             "UncaughtExceptionInterceptor",
             "UserAgentInterceptor",
             "CloudflareInterceptor",
-        )
-        private val MIHON_FORBIDDEN_NETWORK_INTERCEPTOR_NAMES = setOf(
-            "IgnoreGzipInterceptor",
-            "BrotliInterceptor",
         )
     }
 }
