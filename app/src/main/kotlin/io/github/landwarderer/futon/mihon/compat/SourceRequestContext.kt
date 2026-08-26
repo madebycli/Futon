@@ -1,4 +1,4 @@
-// Ported and adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Ported and adapted from Kototoro at dec0ef781644245f6937dc1cafc8ca84963fe08e.
 // Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.mihon.compat
 
@@ -24,6 +24,16 @@ data class SourceRequestContext(
                 allowedBrowserOrigins = baseOrigin?.let(::setOf).orEmpty(),
             )
         }
+
+        /**
+         * HttpSource already knows its declared base URL even when the lightweight ContentSource
+         * tag cannot be cast back to MihonMangaSource. Keep that authority on the request so the
+         * WebView/Cloudflare transport can enforce the same-origin policy without losing context.
+         */
+        fun from(source: ContentSource, declaredBaseUrl: String): SourceRequestContext = SourceRequestContext(
+            source = source,
+            allowedBrowserOrigins = declaredBaseUrl.toHttpsOrigin()?.let(::setOf).orEmpty(),
+        )
     }
 }
 
