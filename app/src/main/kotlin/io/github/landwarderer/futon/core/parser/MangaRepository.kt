@@ -51,19 +51,21 @@ interface MangaRepository {
      * Optional repository-owned image client.
      *
      * Mihon HttpSource implementations frequently install source-specific interceptors, cookies or
-     * TLS behavior on their own client. Returning null keeps Futon's existing shared Manga client.
+     * TLS behavior on their own client. Other repository types keep Futon's shared Manga client.
      */
-    fun getImageClient(): OkHttpClient? = null
+    fun imageRequestClient(): OkHttpClient? = (this as? MihonMangaRepository)?.getImageClient()
 
     /**
-     * Optional repository-owned page request. Returning null keeps Futon's generic image GET.
+     * Optional repository-owned page request. Null keeps Futon's generic image GET.
      */
-    fun createPageRequest(pageUrl: String, page: MangaPage): Request? = null
+    fun buildPageRequest(pageUrl: String, page: MangaPage): Request? =
+        (this as? MihonMangaRepository)?.createPageRequest(pageUrl, page)
 
     /**
-     * Optional repository-owned cover request. Returning null keeps Futon's generic image GET.
+     * Optional repository-owned cover request. Null keeps Futon's generic image GET.
      */
-    fun createCoverRequest(imageUrl: String): Request? = null
+    fun buildCoverRequest(imageUrl: String): Request? =
+        (this as? MihonMangaRepository)?.createCoverRequest(imageUrl)
 
     /**
      * Whether downloader requests for this repository should respect the configured per-source
