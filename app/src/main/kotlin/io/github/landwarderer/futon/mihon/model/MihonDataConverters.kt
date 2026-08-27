@@ -162,11 +162,11 @@ fun Content.toMihonManga(): SManga {
 // ============ SChapter <-> ContentChapter ============
 
 /**
- * Resolve the chapter number using the current Mihon/Kototoro ABI first.
+ * Resolve chapter identity from extension metadata before using host list position.
  *
- * Some modern extensions populate only SChapter.number while leaving the legacy
- * chapter_number field at -1. The repository-provided number is therefore a fallback,
- * not an override of a valid modern number.
+ * Modern extensions may populate only SChapter.number, older ones populate chapter_number.
+ * The repository-provided list index is only a last-resort fallback when neither ABI field
+ * provides a usable number.
  */
 internal fun SChapter.resolveContentChapterNumber(fallbackNumber: Float? = null): Float {
     val modernNumber = try {
@@ -175,8 +175,9 @@ internal fun SChapter.resolveContentChapterNumber(fallbackNumber: Float? = null)
         null
     }
     return modernNumber
+        ?: chapter_number.takeIf { it >= 0 }
         ?: fallbackNumber
-        ?: if (chapter_number >= 0) chapter_number else 0f
+        ?: 0f
 }
 
 /**
