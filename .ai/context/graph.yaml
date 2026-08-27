@@ -30,7 +30,7 @@ nodes:
     value: 1
     base: devel
     base_sha: 05f11b2e6d46993677eec4e7eb66fde2c76e5a4b
-    head_sha_before_context_refresh: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
+    tested_head_before_context_refresh: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
     draft: true
     state: open
     merged: false
@@ -78,7 +78,7 @@ nodes:
     signature_verify: success
     signed_artifact_name: Futon-Mihon-Fix-Signed-Release
     signed_artifact_id: 9623914916
-    signed_apk_sha256: bcbe14a51f5394abc00ac0b2686cc05e2171f57e74d649c58f2e9f2bf9966318
+    signed_apk_sha256: bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f
     artifact_zip_sha256: fb85ca060bc7cd7c94c2a65fed7601ade155c109dc5b7482baba218b89876438
     signing_kind: temporary-test-key
     status: current_green_ci_for_tested_tree
@@ -106,7 +106,8 @@ nodes:
     type: evidence
     tested_pr_head: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
     artifact_id: 9623914916
-    signed_apk_sha256: bcbe14a51f5394abc00ac0b2686cc05e2171f57e74d649c58f2e9f2bf9966318
+    signed_apk_sha256: bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f
+    checksum_verification: "Matched artifact-bundled .sha256 and local sha256sum."
     status: passed
     checked_symbols:
       - com/squareup/zstd/ZstdCompressor
@@ -130,8 +131,8 @@ nodes:
   CI_STATUS_FILE:
     type: evidence
     path: .ci/mihon-fix-latest.json
-    target_run_id: 33012858721
-    target_source_sha: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
+    run_id: 33012858721
+    source_sha: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
     verify: success
     signed_release: success
 
@@ -168,7 +169,7 @@ nodes:
     tested_pr_head: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
     latest_app_source_head: 85f19b491f2c4837e95c99e828fdb28f32d960c0
     signed_artifact_id: 9623914916
-    signed_apk_sha256: bcbe14a51f5394abc00ac0b2686cc05e2171f57e74d649c58f2e9f2bf9966318
+    signed_apk_sha256: bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f
     required_sources:
       - Comix
       - MangaDot.net
@@ -328,7 +329,6 @@ nodes:
     status: superseded_port_completed
     former_status: deferred_pending_device_evidence
     superseded_by: FIX_CLASSLOADER_POLICY
-    reason: "The current branch later ported Kototoro's explicit ABI policy; old handoff text saying the port is deferred is no longer current."
 
   ROOT_CAUSE_DEFAULT_CLIENT_INTERCEPTOR:
     type: historical_root_cause
@@ -409,27 +409,12 @@ nodes:
     repo_node: KOTOTORO_REPO
     path: app/src/main/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt
     blob_sha_at_live_head: 73d06b35bc3c6b7427032401d078508715a04241
-    features:
-      - legacy_brotli_client_default
-      - modern_suspend_api
-      - legacy_fetch_override_dispatch
-      - custom_fetch_fallback
-      - tagged_cacheless_progress_images
-      - RefreshContext_request_ABI
 
   KOTO_NETWORK_HELPER:
     type: reference
     repo_node: KOTOTORO_REPO
     path: app/src/main/kotlin/org/skepsun/kototoro/mihon/compat/KotoNetworkHelper.kt
     blob_sha_at_live_head: f98fffe205c63b1e1ee75028c87792b9c3ff38ee
-    features:
-      - full_host_client_configuration_preservation
-      - interceptor_list_rebuild
-      - required_interceptor_order
-      - compression_filtering
-      - legacy_cloudflareClient_brotli
-      - zstd_static_runtime_reference
-      - current_cloudflare_strategy_and_solve_coordination
 
   KOTO_CLASSLOADER_POLICY:
     type: reference
@@ -575,9 +560,6 @@ edges:
   - from: ROOT_CAUSE_MANGADEX_CONTINUITY
     relation: resolved_by
     to: FIX_SOURCE_API_16
-  - from: CI_FAILURE_86F
-    relation: historically_resolved_before
-    to: CURRENT_CI_9E5
   - from: POST_D5_DEVICE_VALIDATION
     relation: superseded_by
     to: POST_157D_DEVICE_VALIDATION
