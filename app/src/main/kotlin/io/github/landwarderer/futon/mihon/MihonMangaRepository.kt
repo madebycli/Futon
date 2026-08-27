@@ -120,9 +120,7 @@ class MihonMangaRepository(
             sContent.toDomainContent(
                 source = source,
                 publicUrl = getPublicUrl(sContent),
-            ).also {
-                android.util.Log.d(TAG, "Mapped to Domain Content: ${it.title}")
-            }.toManga()
+            ).toManga()
         }
     }
 
@@ -164,12 +162,12 @@ class MihonMangaRepository(
         val details = update.manga
         val chapters = update.chapters.asReversed()
             .mapIndexed { index, sChapter ->
-                val chapterNumber = if (sChapter.chapter_number >= 0) {
+                val fallbackNumber = if (sChapter.chapter_number >= 0) {
                     sChapter.chapter_number
                 } else {
                     (index + 1).toFloat()
                 }
-                sChapter.toContentChapter(source, chapterNumber).also { chapter ->
+                sChapter.toContentChapter(source, fallbackNumber).also { chapter ->
                     rememberMihonChapter(chapter.id, sChapter)
                 }
             }
@@ -444,6 +442,12 @@ class MihonMangaRepository(
         snapshot.thumbnail_url = readMihonField<String?>(null) { thumbnail_url }
         snapshot.update_strategy = readMihonField(snapshot.update_strategy) { update_strategy }
         snapshot.initialized = readMihonField(false) { initialized }
+        snapshot.genres = readMihonField(emptyList()) { genres }
+        snapshot.altTitles = readMihonField(emptyList()) { altTitles }
+        snapshot.banner = readMihonField<String?>(null) { banner }
+        snapshot.contentRating = readMihonField(SManga.ContentRating.SAFE) { contentRating }
+        snapshot.score = readMihonField<Int?>(null) { score }
+        snapshot.readingMode = readMihonField<SManga.ReadingMode?>(null) { readingMode }
         snapshot.memo = readMihonField(JsonObject(emptyMap())) { memo }
     }
 
@@ -453,6 +457,14 @@ class MihonMangaRepository(
         snapshot.date_upload = readMihonField(0L) { date_upload }
         snapshot.chapter_number = readMihonField(-1f) { chapter_number }
         snapshot.scanlator = readMihonField<String?>(null) { scanlator }
+        snapshot.number = readMihonField<String?>(null) { number }
+        snapshot.volume = readMihonField<String?>(null) { volume }
+        snapshot.scanlators = readMihonField(emptyList()) { scanlators }
+        snapshot.note = readMihonField<String?>(null) { note }
+        snapshot.memo = readMihonField(JsonObject(emptyMap())) { memo }
+        snapshot.locked = readMihonField(false) { locked }
+        snapshot.read = readMihonField(false) { read }
+        snapshot.last_page_read = readMihonField(0) { last_page_read }
     }
 
     private fun MangaPage.toMihonPage(imageUrl: String): Page {
