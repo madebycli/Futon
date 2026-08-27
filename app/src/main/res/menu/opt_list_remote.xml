@@ -26,6 +26,14 @@
 		tools:visible="true" />
 
 	<item
+		android:id="@+id/action_solve_cloudflare_webview"
+		android:orderInCategory="45"
+		android:title="@string/solve_cloudflare_webview"
+		android:visible="false"
+		app:showAsAction="never"
+		tools:visible="true" />
+
+	<item
 		android:id="@+id/action_source_settings"
 		android:orderInCategory="50"
 		android:title="@string/settings"
