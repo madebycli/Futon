@@ -1,4 +1,4 @@
-// Adapted from Kototoro KotoNetworkHelper at c1128b91140053b081cc7453c87a16f52ab2f12a.
+// Adapted from Kototoro KotoNetworkHelper at f4f37a5b7290da05c10b9325912f2a37ebeff0f9.
 // Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.mihon.compat
 
@@ -12,6 +12,8 @@ import io.github.landwarderer.futon.core.exceptions.CloudFlareBlockedException
 import io.github.landwarderer.futon.core.exceptions.CloudFlareProtectedException
 import io.github.landwarderer.futon.core.exceptions.InteractiveActionRequiredException
 import io.github.landwarderer.futon.core.network.CloudFlareInterceptor as FutonCloudFlareInterceptor
+import io.github.landwarderer.futon.core.network.webview.CloudflareSolveCoordinator
+import io.github.landwarderer.futon.core.network.webview.WebViewClearanceSolver
 import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
 import io.github.landwarderer.futon.mihon.model.toMangaSource
 import io.github.landwarderer.futon.mihon.parsers.model.ContentSource
@@ -27,37 +29,21 @@ import okhttp3.Response
 import okhttp3.brotli.BrotliInterceptor
 import okhttp3.zstd.Zstd
 import org.koitharu.kotatsu.parsers.model.MangaSource
-import java.io.IOException
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Implementation of Mihon's NetworkHelper interface.
- *
- * Wraps App's existing OkHttpClient to provide Mihon extensions with
- * access to the network stack, including CloudFlare bypassing and cookie management.
- *
- * The host client is preserved so proxy, TLS, DNS, cache, authenticators, dispatcher,
- * connection pool, and every other OkHttp setting survive. Only the interceptor lists are
- * rebuilt because Mihon/Keiyoushi sources own their response-compression contract.
- */
+/** Mihon/Keiyoushi network host with the same default-client ABI and Cloudflare semantics. */
 class MihonNetworkHelper(
     baseClient: OkHttpClient,
     val cookieJar: CookieJar,
     private val webViewExecutor: WebViewExecutor? = null,
+    private val clearanceSolver: WebViewClearanceSolver? = null,
+    private val solveCoordinator: CloudflareSolveCoordinator? = null,
 ) : NetworkHelper() {
 
-    // Dynamically loaded extensions reference this class outside the app's static dex graph.
     private val zstdRuntimeDependency = Zstd
 
-    /**
-     * The OkHttpClient for current Mihon/Keiyoushi extensions.
-     *
-     * The first three application interceptors deliberately use Mihon's expected class names.
-     * Current Keiyoushi sources validate these names on the default client before applying
-     * source-specific configuration. Compression interceptors are deliberately excluded.
-     */
     override val client: OkHttpClient = run {
         val builder = baseClient.newBuilder().apply {
             interceptors().clear()
@@ -65,35 +51,26 @@ class MihonNetworkHelper(
             cookieJar(cookieJar)
         }
 
-        // Match Mihon's default application interceptor contract. Keep the uncaught-exception
-        // wrapper first so unchecked failures from extensions become ordinary IO failures.
+        // Keep the exact three Mihon/Keiyoushi default interceptors first.
         builder.addInterceptor(UncaughtExceptionInterceptor())
         builder.addInterceptor(UserAgentInterceptor(::defaultUserAgentProvider))
-
-        // Keiyoushi requires an interceptor with this exact class name in position three.
-        // Do not use Futon's throwing delegate here: it would abort the chain before the
-        // Mihon-specific resolver below can run. The real Cloudflare detection/resolve/retry
-        // remains in this helper while this wrapper satisfies the upstream client contract.
         builder.addInterceptor(
             CloudflareInterceptor(
                 delegate = Interceptor { chain -> chain.proceed(chain.request()) },
             ),
         )
 
-        // Keep construction side-effect free. These filters are also exercised by plain JVM
-        // regression tests where android.util.Log is intentionally unavailable.
         baseClient.interceptors.forEach { interceptor ->
             if (isCompatibleInterceptor(interceptor) && !isDefaultMihonInterceptor(interceptor)) {
                 builder.addInterceptor(interceptor)
             }
         }
-
         baseClient.networkInterceptors.forEach { interceptor ->
-            if (isCompatibleInterceptor(interceptor)) {
-                builder.addNetworkInterceptor(interceptor)
-            }
+            if (isCompatibleInterceptor(interceptor)) builder.addNetworkInterceptor(interceptor)
         }
 
+        // Real Cloudflare handling. A genuine challenge is solved by Kototoro's current strategy:
+        // a fresh off-screen WebView, shared per host, followed by one retry of the source request.
         builder.addInterceptor { chain ->
             val originalRequest = chain.request()
             val request = enrichApiRequestHeadersIfNeeded(originalRequest)
@@ -112,20 +89,20 @@ class MihonNetworkHelper(
                     val host = request.url.host.lowercase()
                     val previousClearance = getClearanceCookie(request)
 
-                    if (tryResolveWithWebView(request, challengeUrl)) {
+                    if (tryResolveAutomatically(request, challengeUrl)) {
                         response.close()
                         val retryRequest = enrichApiRequestHeadersIfNeeded(originalRequest)
                         val retryClearance = getClearanceCookie(retryRequest)
                         Log.i(
-                            "MihonNetwork",
-                            "Cloudflare WebView solved host=$host, clearanceChanged=${retryClearance != null && retryClearance != previousClearance}; retrying source request",
+                            TAG,
+                            "Cloudflare offscreen solve completed host=$host, clearanceChanged=${retryClearance != null && retryClearance != previousClearance}; retrying source request",
                         )
 
                         val retryResponse = chain.proceed(retryRequest)
                         when (CloudFlareHelper.checkResponseForProtection(retryResponse)) {
                             CloudFlareHelper.PROTECTION_NOT_DETECTED -> {
                                 recentChallengeAttempts.remove(host)
-                                Log.i("MihonNetwork", "Cloudflare retry succeeded host=$host status=${retryResponse.code}")
+                                Log.i(TAG, "Cloudflare retry succeeded host=$host status=${retryResponse.code}")
                                 return@addInterceptor retryResponse
                             }
 
@@ -137,45 +114,38 @@ class MihonNetworkHelper(
                             )
 
                             else -> {
-                                Log.w("MihonNetwork", "Cloudflare retry still protected host=$host status=${retryResponse.code}")
-                                throwUnresolvedChallenge(
-                                    response = retryResponse,
-                                    request = retryRequest,
-                                    challengeUrl = challengeUrl,
-                                    host = host,
-                                )
+                                Log.w(TAG, "Cloudflare retry still protected host=$host status=${retryResponse.code}")
+                                throwUnresolvedChallenge(retryResponse, retryRequest, challengeUrl, host)
                             }
                         }
                     }
 
-                    throwUnresolvedChallenge(
-                        response = response,
-                        request = request,
-                        challengeUrl = challengeUrl,
-                        host = host,
-                    )
+                    throwUnresolvedChallenge(response, request, challengeUrl, host)
                 }
 
                 else -> response
             }
         }
 
+        // Diagnostics deliberately run after the challenge interceptor so device logs show the
+        // extension-visible request/response and distinguish a CF challenge from API errors such
+        // as Comix's JSON {"message":"Invalid token."} response.
         builder.addInterceptor { chain ->
             val request = chain.request()
             val requestCookies = cookieJar.loadForRequest(request.url)
             val cfClearanceCookie = requestCookies.firstOrNull { it.name == "cf_clearance" }?.value
             val cookieNames = requestCookies.joinToString(",") { it.name }
             Log.d(
-                "MihonNetwork",
+                TAG,
                 "RequestMeta: host=${request.url.host}, ua=${request.header("User-Agent")}, referer=${request.header("Referer")}, origin=${request.header("Origin")}, hasCfClearance=${cfClearanceCookie != null}, cfClearance=${maskCookieValue(cfClearanceCookie)}, cookies=[$cookieNames]",
             )
-            Log.d("MihonNetwork", "Request: ${request.method} ${request.url}")
+            Log.d(TAG, "Request: ${request.method} ${request.url}")
 
             val response = chain.proceed(request)
             val responseCode = response.code
             val contentType = response.header("Content-Type")
             Log.d(
-                "MihonNetwork",
+                TAG,
                 "Response: $responseCode, Content-Type: $contentType, cf-ray=${response.header("cf-ray")}, cf-mitigated=${response.header("cf-mitigated")}, server=${response.header("server")}, URL: ${request.url}",
             )
 
@@ -184,26 +154,23 @@ class MihonNetworkHelper(
                 source.request(200)
                 val buffer = source.buffer.clone()
                 val preview = buffer.readUtf8(minOf(200, buffer.size))
-                Log.w("MihonNetwork", "Non-successful response ($responseCode) preview: $preview")
+                Log.w(TAG, "Non-successful response ($responseCode) preview: $preview")
             }
-
             response
         }
 
         builder.build()
     }
 
-    private fun isCompatibleInterceptor(interceptor: Interceptor): Boolean {
-        return interceptor !== BrotliInterceptor &&
+    private fun isCompatibleInterceptor(interceptor: Interceptor): Boolean =
+        interceptor !== BrotliInterceptor &&
             interceptor.javaClass.simpleName != "BrotliInterceptor" &&
             interceptor.javaClass.simpleName != "GZipInterceptor" &&
             interceptor.javaClass.simpleName != "IgnoreGzipInterceptor" &&
             interceptor !is FutonCloudFlareInterceptor
-    }
 
-    private fun isDefaultMihonInterceptor(interceptor: Interceptor): Boolean {
-        return interceptor.javaClass.simpleName in MIHON_COMPAT_INTERCEPTOR_NAMES
-    }
+    private fun isDefaultMihonInterceptor(interceptor: Interceptor): Boolean =
+        interceptor.javaClass.simpleName in MIHON_COMPAT_INTERCEPTOR_NAMES
 
     @Deprecated("The regular client handles Cloudflare by default")
     override val cloudflareClient: OkHttpClient = client.newBuilder()
@@ -285,29 +252,36 @@ class MihonNetworkHelper(
     private fun getClearanceCookie(request: Request): String? =
         cookieJar.loadForRequest(request.url).firstOrNull { it.name == "cf_clearance" }?.value
 
-    private fun tryResolveWithWebView(request: Request, challengeUrl: String): Boolean {
-        val executor = webViewExecutor ?: run {
-            Log.w("MihonNetwork", "Cloudflare WebView resolver unavailable: WebViewExecutor is null")
-            return false
-        }
-
+    private fun tryResolveAutomatically(request: Request, challengeUrl: String): Boolean {
         if (Looper.myLooper() == Looper.getMainLooper()) {
-            Log.w("MihonNetwork", "Cloudflare automatic solve skipped on main thread")
+            Log.w(TAG, "Cloudflare automatic solve skipped on main thread")
             return false
         }
 
+        val solver = clearanceSolver
+        val coordinator = solveCoordinator
+        if (solver != null && coordinator != null) {
+            return runCatching {
+                runBlocking {
+                    coordinator.solve(request.url.host) { solver.solve(request) }
+                }
+            }.onFailure {
+                Log.w(TAG, "Cloudflare offscreen solver failed for ${request.url.host}", it)
+            }.getOrDefault(false)
+        }
+
+        // Compatibility-only fallback for tests or old construction sites. Production Mihon
+        // wiring always supplies the dedicated solver above.
+        val executor = webViewExecutor ?: return false
         val exception = CloudFlareProtectedException(
             url = challengeUrl,
             source = null,
             headers = request.headers,
         )
-
         return runCatching {
-            runBlocking {
-                executor.tryResolveCaptcha(exception, CLOUDFLARE_RESOLVE_TIMEOUT_MS)
-            }
+            runBlocking { executor.tryResolveCaptcha(exception, LEGACY_RESOLVE_TIMEOUT_MS) }
         }.onFailure {
-            Log.w("MihonNetwork", "Cloudflare WebView resolver failed for ${request.url.host}", it)
+            Log.w(TAG, "Legacy Cloudflare resolver failed for ${request.url.host}", it)
         }.getOrDefault(false)
     }
 
@@ -318,9 +292,8 @@ class MihonNetworkHelper(
         host: String,
     ): Nothing {
         val clearance = getClearanceCookie(request)
-
         if (shouldSkipInteractiveAction(host, clearance)) {
-            Log.w("MihonNetwork", "Skip interactive action for host=$host: repeated challenge with same cf_clearance")
+            Log.w(TAG, "Skip interactive action for host=$host: repeated challenge with same cf_clearance")
             response.closeThrowing(
                 CloudFlareBlockedException(
                     url = challengeUrl,
@@ -331,7 +304,7 @@ class MihonNetworkHelper(
 
         val source = request.tag(ContentSource::class.java)
         if (source == null) {
-            Log.w("MihonNetwork", "Cloudflare challenge unresolved for host=$host and request has no ContentSource tag")
+            Log.w(TAG, "Cloudflare challenge unresolved for host=$host and request has no ContentSource tag")
             response.closeThrowing(
                 CloudFlareProtectedException(
                     url = challengeUrl,
@@ -341,6 +314,8 @@ class MihonNetworkHelper(
             )
         }
 
+        // Only after the dedicated background solver failed do we preserve Futon's existing
+        // manual fallback contract for callers that can deliberately present interactive UI.
         response.closeThrowing(
             InteractiveActionRequiredException(
                 source = source.toMangaSource(),
@@ -359,11 +334,7 @@ class MihonNetworkHelper(
         val now = System.currentTimeMillis()
         val last = recentChallengeAttempts[host]
         if (last == null || now - last.timestampMs > INTERACTIVE_RETRY_WINDOW_MS || last.clearance != clearance) {
-            recentChallengeAttempts[host] = ChallengeAttempt(
-                clearance = clearance,
-                timestampMs = now,
-                count = 1,
-            )
+            recentChallengeAttempts[host] = ChallengeAttempt(clearance, now, 1)
             return false
         }
         val nextCount = last.count + 1
@@ -378,7 +349,8 @@ class MihonNetworkHelper(
     )
 
     companion object {
-        private const val CLOUDFLARE_RESOLVE_TIMEOUT_MS = 20_000L
+        private const val TAG = "MihonNetwork"
+        private const val LEGACY_RESOLVE_TIMEOUT_MS = 20_000L
         private const val INTERACTIVE_RETRY_WINDOW_MS = 10 * 60 * 1000L
         private val recentChallengeAttempts = ConcurrentHashMap<String, ChallengeAttempt>()
         private val MIHON_COMPAT_INTERCEPTOR_NAMES = setOf(
