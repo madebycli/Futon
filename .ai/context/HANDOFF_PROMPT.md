@@ -57,32 +57,15 @@ Für tested head `9e5b792...`:
 - optimierter R8 Release-Build: success
 - APK-Signaturprüfung: success
 - signed artifact id: `9623914916`
-- signed APK SHA-256: `bcbe14a51f5394abc00ac0b2686cc05e2171f57e74d649c58f2e9f2bf9966318`
-- artifact ZIP SHA-256: `fb85ca060bc7cd7c94c2a65fed7601ade155c109dc5b7482baba218b89876438`
+- signed artifact ZIP SHA-256: `fb85ca060bc7cd7c94c2a65fed7601ade155c109dc5b7482baba218b89876438`
+- signed APK SHA-256: `bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f`
+- APK-Hash wurde gegen die im Artifact enthaltene `.sha256` und lokalen `sha256sum` geprüft
 - Signing: `temporary-test-key`
 - App-Version: `9.8.1-mihon-fix-test`, versionCode `90803`
 
 Wichtig: Der temporäre Test-Key kann keine Installation überschreiben, die mit einem anderen Key signiert wurde. Bei Installationskonflikt kann eine Deinstallation der alten Testinstallation nötig sein.
 
-Direkte DEX-Prüfung des optimierten APKs bestätigte den aktuellen Workflow-Gate, unter anderem:
-
-- Zstd Runtime
-- `PreferenceScreen`
-- `ConfigurableSource`
-- `Source`
-- `RefreshContext`
-- `HttpSource`
-- `SManga`
-- `SChapter`
-- `Page`
-- `getMangaUpdate`
-- `fetchRelatedMangaList`
-- `getChapterList`
-- `getPageList`
-- `fetchPageList`
-- `CaptchaAutoResolveCoordinator`
-- `TachiyomiApkClassLoaderPolicy`
-- Brotli Runtime
+Direkte DEX-Prüfung des optimierten APKs bestätigte den aktuellen Workflow-Gate, unter anderem Zstd/Brotli, `PreferenceScreen`, `ConfigurableSource`, `Source`, `RefreshContext`, `HttpSource`, `SManga`, `SChapter`, `Page`, `getMangaUpdate`, `fetchRelatedMangaList`, Chapter/Page APIs, `CaptchaAutoResolveCoordinator` und `TachiyomiApkClassLoaderPolicy`.
 
 `.ci/mihon-fix-latest.json` zeigt auf run `33012858721` / source `9e5b792...` / success.
 
@@ -96,7 +79,7 @@ Kototoro:
 - vorheriger Kontext-SHA: `dec0ef781644245f6937dc1cafc8ca84963fe08e`
 - zwischen `dec0ef...` und `f4f37...` liegen 9 Commits, aber keine Änderungen an den hier verwendeten Mihon/Tachiyomi-Runtime-, Source-ABI-, NetworkHelper-, ClassLoader- oder Extension-Runtime-Referenzdateien
 
-Wichtige aktuelle Referenzdateien:
+Wichtige aktuelle Kototoro-Referenzdateien:
 
 - `app/src/main/kotlin/eu/kanade/tachiyomi/source/Source.kt`
 - `app/src/main/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt`
@@ -114,65 +97,23 @@ Keiyoushi extensions-lib:
 - `main`
 - zuletzt live `18a8e26be2320b48bdaa11840170479b62989e23`
 
-## Was im aktuellen Futon bereits implementiert ist
+## Aktuell implementierte Kompatibilität
 
-### NetworkHelper / Compression
+- Mihon Default-Client-Interceptor-Reihenfolge und vollständige Host-OkHttp-Konfiguration.
+- Moderne und Legacy Brotli/Zstd-Kompatibilität.
+- `HttpSource` modern suspend plus Legacy-Rx-`fetch*` Fallback.
+- `RefreshContext`, Request-/Source-Context und aktuelle Source-Request-ABI.
+- `SManga.memo`, `SMangaUpdate`, `Source.getMangaUpdate(...)`, Legacy Details/Chapters und kombinierter Repository-Pfad.
+- `minSdk = 26` gegen den dynamischen Serializer/default-method ABI-Konflikt.
+- Kototoro-artige `TachiyomiApkClassLoaderPolicy`, Parent-owned Host-ABI, child-first `$-CC` / `$DefaultImpls`.
+- Source-Browser-Origin, gemeinsamer Mihon Preference-Namespace, protobuf extension-lib Version, isolierte Extension-Repo-Fehler und robustes Fallback-Version-Parsing.
+- Historischer Futon Cloudflare WebView-Solve mit Clearance-Erkennung und Originalrequest-Retry.
 
-- `UncaughtExceptionInterceptor` zuerst
-- `UserAgentInterceptor` zweitens
-- `CloudflareInterceptor` drittens
-- Mihon-Client aus `baseClient.newBuilder()`, dadurch bleiben Proxy/TLS/DNS/cache/authenticator/dispatcher/timeouts erhalten
-- nur Interceptor-Listen werden neu aufgebaut
-- inkompatible Legacy-Compression-Interceptors werden entfernt
-- kompatible Host-Interceptors bleiben erhalten
-- konkrete und namensbasierte Brotli-Filterung
-- moderner Default-Client ohne Brotli-Network-Interceptor
-- Legacy-`cloudflareClient` separat mit Brotli
-- Zstd statisch im Host-Graph verankert
+Der alte Kontext, der `157d94e...` als letzten Source-Stand behandelte, ist superseded. Die zusätzlichen App-Fixes bis `85f19b...` und Tests bis `9e5b792...` sind bereits Teil des aktuellen getesteten Trees.
 
-### HttpSource / Source ABI
+## Historische Root Causes
 
-- moderner suspend-Pfad direkt über OkHttp
-- Legacy-Rx-`fetch*` Overrides werden per Reflection erkannt und bei Bedarf bevorzugt
-- `UnsupportedOperationException` Fallback für Custom-Legacy-Fetch
-- `getHomeUrl() = baseUrl`
-- Legacy-HttpSource bekommt Brotli über `cloudflareClient`
-- Image-Requests mit Source-Tag, cacheless/progress Call und HTTP-Success-Check
-- `RefreshContext`
-- modernes Request-ABI und `SourceRequestContext` Tagging
-- `SManga.memo`
-- `SMangaUpdate`
-- `Source.getMangaUpdate(...)`
-- Legacy Details/Chapter Fallback
-- kombinierter `MihonMangaRepository` 1.6 Update-Pfad
-
-### Post-157d bereits hinzugekommen
-
-Der alte Kontext, der `157d94e...` als letzten Source-Stand behandelte, war veraltet. Im getesteten `9e5b792...` Tree sind unter anderem bereits enthalten:
-
-- `e617a5d...`: HttpSource Request ABI + `RefreshContext` an Kototoro angeglichen
-- `fd81be4...`: moderner `genres` Mapper
-- `d5c344c...`: deklarierte protobuf extension-lib Version erhalten
-- `87bbda4...`: deklarierte Source-Browser-Origin erhalten
-- `4f254b2...`: gemeinsamer Mihon Source-Preference-Namespace `source_<mihonId>`
-- `00a488a...`: einzelne Extension-Repo-Fehler isolieren, nach Kototoro-Muster
-- `85f19b4...`: Extension-Repo-Fallback-Parsing an aktuelle Versionsformen anpassen
-- spätere Commits bis `9e5b792...`: zusätzliche Host-ABI- und optimierte APK-Regressionen
-
-### ClassLoader
-
-Kototoros generische ABI-Policy ist bereits portiert:
-
-- Futon `ChildFirstPathClassLoader` nutzt `DexClassLoader`
-- Host-/Parent-owned: Java/Kotlin/Android, Coroutines, JSON/Jsoup, OkHttp/Okio, Rx, Tachiyomi source/network/util ABI, Injekt, IReader, Ktor, Fleeksoft
-- `$-CC` und `$DefaultImpls` bleiben child-first
-- Regressionstest: `TachiyomiApkClassLoaderPolicyTest`
-
-Bei neuen `AbstractMethodError`, `NoSuchMethodError`, `IncompatibleClassChangeError`, `ClassCastException`, `VerifyError` oder ClassLoader-`ClassNotFoundException` zuerst prüfen, ob die bereits portierte Futon-Policy vom aktuellen Kototoro abweicht. Keine neuen Ad-hoc-Ausnahmen hinzufügen, solange die generische Policy den Fall erklären kann.
-
-## Historische Root Causes, nicht als neue Bugs zählen
-
-Alle Details stehen in `STATE.md` und `graph.yaml`. Wesentliche Familien:
+Nicht als neue Bugs zählen, solange ein aktuelles Gerätelog keinen Rückfall beweist:
 
 - fehlender `UncaughtExceptionInterceptor` im Default-Client, resolved
 - fehlender host-sichtbarer Brotli Runtime-Typ, resolved
@@ -182,6 +123,8 @@ Alle Details stehen in `STATE.md` und `graph.yaml`. Wesentliche Familien:
 - `Source.getMangaUpdate` `NoSuchMethodError`, resolved
 - Mihon 1.6 MangaDex `0 manga` Continuity-Fall, resolved/superseded durch aktuellen kombinierten Repository-Pfad
 - historischer Comix Cloudflare-Solve mit geändertem `cf_clearance` und HTTP 200 nach Retry, proven historical
+
+Alle Details und frühere CI-Regressionen stehen in `STATE.md` und `graph.yaml`.
 
 ## Offene, aber noch unbewiesene Kototoro-Paritätsdifferenz
 
@@ -199,7 +142,7 @@ Aktuelles Kototoro hat eine neuere Cloudflare/Captcha-Orchestrierung als Futon:
 
 Futon hat eine ältere, einfachere Portierung mit per-Host Mutex/Cooldown, WebView Solve, Originalrequest Probe und Retry.
 
-Wichtig: Das ist aktuell **kein bestätigter Root Cause**. Ohne aktuellen Gerätetest des `9e5b792...` Trees nicht allein wegen neuerer Kototoro-Architektur portieren. Wenn ein aktuelles Gerätelog genau diesen Pfad als Fehler zeigt und Kototoro ihn funktionierend löst, dann die relevante aktuelle Kototoro-Orchestrierung code-nah mit Attribution und Tests portieren statt einen weiteren Futon-Workaround zu erfinden.
+Das ist aktuell **kein bestätigter Root Cause**. Ohne aktuellen Gerätetest des `9e5b792...` Trees nicht allein wegen neuerer Kototoro-Architektur portieren. Wenn ein aktuelles Gerätelog genau diesen Pfad als Fehler zeigt und Kototoro ihn funktionierend löst, die relevante aktuelle Kototoro-Orchestrierung code-nah mit Attribution und Tests portieren statt einen weiteren Futon-Workaround zu erfinden.
 
 ## Höchste Priorität: echter Gerätetest des aktuellen APKs
 
@@ -207,21 +150,7 @@ Es gibt im derzeitigen Kontext noch keinen aufgezeichneten realen Device-Test de
 
 Aktueller offener Runtime-Knoten: `POST_9E5_DEVICE_VALIDATION`.
 
-Teste mindestens:
-
-- Comix
-- MangaDot.net
-- Manga Ball
-- Weeb Central
-- MangaRead.org
-
-jeweils soweit möglich:
-
-- Browse/Popular
-- Search
-- Details
-- Chapters
-- Pages/Images
+Teste mindestens Comix, MangaDot.net, Manga Ball, Weeb Central und MangaRead.org jeweils soweit möglich über Browse/Popular, Search, Details, Chapters und Pages/Images.
 
 Für jeden Fehler:
 
