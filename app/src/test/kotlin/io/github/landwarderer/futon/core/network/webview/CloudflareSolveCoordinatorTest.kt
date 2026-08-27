@@ -2,7 +2,7 @@ package io.github.landwarderer.futon.core.network.webview
 
 import io.github.landwarderer.futon.core.network.CloudflareHostCooldown
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
@@ -20,21 +20,20 @@ class CloudflareSolveCoordinatorTest {
         val cooldown = CloudflareHostCooldown().apply { cooldownMillis = 0L }
         val coordinator = CloudflareSolveCoordinator(cooldown)
         val calls = AtomicInteger(0)
-        val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
 
-        val first = async(Dispatchers.Default) {
+        val first = async(start = CoroutineStart.UNDISPATCHED) {
             coordinator.solve("COMIX.TO") {
                 calls.incrementAndGet()
-                started.complete(Unit)
                 release.await()
                 true
             }
         }
-        started.await()
 
+        // UNDISPATCHED makes every follower run until it suspends on the already-active solve,
+        // so releasing the leader below cannot race with followers that have not joined yet.
         val followers = List(8) {
-            async(Dispatchers.Default) {
+            async(start = CoroutineStart.UNDISPATCHED) {
                 coordinator.solve("comix.to") {
                     calls.incrementAndGet()
                     true
