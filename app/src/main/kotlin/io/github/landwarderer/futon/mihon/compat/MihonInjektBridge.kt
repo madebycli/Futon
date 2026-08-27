@@ -6,6 +6,9 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.preference.PreferenceManager
 import eu.kanade.tachiyomi.network.NetworkHelper
+import io.github.landwarderer.futon.core.network.CloudflareHostCooldown
+import io.github.landwarderer.futon.core.network.webview.CloudflareSolveCoordinator
+import io.github.landwarderer.futon.core.network.webview.WebViewClearanceSolver
 import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.StringFormat
@@ -50,10 +53,22 @@ class MihonInjektBridge(
             val contextualHttpClient = httpClient.newBuilder()
                 .addInterceptor(MihonSourceContextInterceptor())
                 .build()
-            val networkHelper = MihonNetworkHelper(contextualHttpClient, cookieJar, webViewExecutor)
+
+            // Current Kototoro uses a dedicated fresh off-screen WebView for the MIHON Cloudflare
+            // strategy. Keep this separate from Futon's interactive WebViewExecutor so a normal
+            // extension request never needs to launch BrowserActivity merely to refresh clearance.
+            val clearanceSolver = WebViewClearanceSolver(context.applicationContext, cookieJar)
+            val solveCoordinator = CloudflareSolveCoordinator(CloudflareHostCooldown())
+            val networkHelper = MihonNetworkHelper(
+                baseClient = contextualHttpClient,
+                cookieJar = cookieJar,
+                webViewExecutor = webViewExecutor,
+                clearanceSolver = clearanceSolver,
+                solveCoordinator = solveCoordinator,
+            )
             Log.d(
                 "MihonInjektBridge",
-                "Creating MihonNetworkHelper with webViewExecutorPresent=${webViewExecutor != null}",
+                "Creating MihonNetworkHelper with offscreenCloudflareSolver=true, webViewExecutorPresent=${webViewExecutor != null}",
             )
 
             Injekt.importModule(object : InjektModule {
