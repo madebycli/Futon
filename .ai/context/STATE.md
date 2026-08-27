@@ -34,11 +34,11 @@ Tree: `9324f0bf91078df59a7ccd922082b69806c37c10`
 - Signed artifact upload: `success`.
 - Signed artifact: `Futon-Mihon-Fix-Signed-Release`, artifact id `9623914916`.
 - Signed artifact ZIP SHA-256: `fb85ca060bc7cd7c94c2a65fed7601ade155c109dc5b7482baba218b89876438`.
-- Signed APK SHA-256: `bcbe14a51f5394abc00ac0b2686cc05e2171f57e74d649c58f2e9f2bf9966318`.
+- Signed APK SHA-256, verified against the artifact's bundled `.sha256` file and local `sha256sum`: `bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f`.
 - Signing kind reported by the workflow: `temporary-test-key`. This APK cannot update an installation signed by a different key; uninstall/reinstall may be required.
 - `BUILD-INFO.txt` records source commit `fd2eff...` because the workflow ran on `pull_request`; the built tree is identical to PR head `9e5b792...`.
 
-Local extraction of the current optimized APK confirmed its recorded SHA-256. Direct DEX inspection of the optimized APK confirmed the current workflow ABI/runtime gate symbols:
+Direct DEX inspection of the optimized APK confirmed the current workflow ABI/runtime gate symbols:
 
 - `com/squareup/zstd/ZstdCompressor`
 - `androidx/preference/PreferenceScreen`
@@ -60,7 +60,7 @@ Local extraction of the current optimized APK confirmed its recorded SHA-256. Di
 
 Do not treat symbols that are not part of the current host contract or current workflow gate as missing-runtime bugs without device evidence.
 
-`.ci/mihon-fix-latest.json` should record run `33012858721`, source `9e5b792...`, verification `success`, signed release `success`.
+`.ci/mihon-fix-latest.json` records run `33012858721`, source `9e5b792...`, verification `success`, signed release `success`.
 
 ## Current upstream references
 
@@ -117,7 +117,7 @@ Current Kototoro files inspected in this round at `f4f37a5...`:
 - `UnsupportedOperationException` fallback preserves legacy custom fetch behavior.
 - `getHomeUrl()` returns `baseUrl`.
 - Image requests use source tagging and cacheless/progress-aware network calls with HTTP success checking.
-- Modern request ABI now includes `RefreshContext` and current request tagging/source context behavior adapted from Kototoro.
+- Modern request ABI includes `RefreshContext` and current request tagging/source context behavior adapted from Kototoro.
 - `MihonModernHostContractTest` and the expanded compatibility suite protect modern and legacy contracts.
 
 ### Post-157d host-ABI and repository alignment already present
