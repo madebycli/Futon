@@ -22,6 +22,10 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
 
+private fun snapshotPath(chapter: SChapter?): String? {
+    return chapter?.memo?.get("path")?.toString()?.trim('"')
+}
+
 class MihonMangaRepositoryTest {
 
     @Before
@@ -113,10 +117,6 @@ class MihonMangaRepositoryTest {
             read = false
             last_page_read = 4
         }
-    }
-
-    private fun snapshotPath(chapter: SChapter?): String? {
-        return chapter?.memo?.get("path")?.toString()?.trim('"')
     }
 
     private class SnapshotCatalogueSource(
