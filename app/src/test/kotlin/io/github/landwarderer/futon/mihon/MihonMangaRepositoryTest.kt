@@ -1,6 +1,7 @@
 package io.github.landwarderer.futon.mihon
 
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import eu.kanade.tachiyomi.source.CatalogueSource
@@ -33,19 +34,23 @@ private fun snapshotPath(chapter: SChapter?): String? {
     return chapter?.memo?.get("path")?.toString()?.trim('"')
 }
 
+private class TestLifecycleOwner : LifecycleOwner {
+    override val lifecycle: Lifecycle = object : Lifecycle() {
+        override fun addObserver(observer: LifecycleObserver) = Unit
+        override fun removeObserver(observer: LifecycleObserver) = Unit
+        override val currentState: State = State.RESUMED
+    }
+}
+
 class MihonMangaRepositoryTest {
 
     private lateinit var mockedProcessLifecycleOwner: MockedStatic<ProcessLifecycleOwner>
 
     @Before
     fun setUp() {
-        val lifecycle = mock(Lifecycle::class.java)
-        Mockito.`when`(lifecycle.currentState).thenReturn(Lifecycle.State.RESUMED)
-        val lifecycleOwner = mock(LifecycleOwner::class.java)
-        Mockito.`when`(lifecycleOwner.lifecycle).thenReturn(lifecycle)
         mockedProcessLifecycleOwner = Mockito.mockStatic(ProcessLifecycleOwner::class.java)
         mockedProcessLifecycleOwner.`when`<LifecycleOwner> { ProcessLifecycleOwner.get() }
-            .thenReturn(lifecycleOwner)
+            .thenReturn(TestLifecycleOwner())
         Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
     }
