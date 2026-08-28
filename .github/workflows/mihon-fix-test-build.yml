@@ -47,6 +47,7 @@ jobs:
             --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
             --tests "io.github.landwarderer.futon.mihon.compat.MihonModernHostContractTest" \
+            --tests "io.github.landwarderer.futon.mihon.MihonMangaRepositoryTest" \
             --tests "io.github.landwarderer.futon.mihon.model.MihonDataConvertersTest" \
             --tests "io.github.landwarderer.futon.core.network.GitHubRawUrlCompatTest" \
             --stacktrace \

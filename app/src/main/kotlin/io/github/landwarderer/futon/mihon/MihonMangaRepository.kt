@@ -5,7 +5,6 @@ package io.github.landwarderer.futon.mihon
 import androidx.collection.LruCache
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.Page
-import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import io.github.landwarderer.futon.core.cache.MemoryContentCache
@@ -13,6 +12,8 @@ import io.github.landwarderer.futon.core.exceptions.CloudFlareException
 import io.github.landwarderer.futon.core.exceptions.InteractiveActionRequiredException
 import io.github.landwarderer.futon.core.parser.CachingMangaRepository
 import io.github.landwarderer.futon.mihon.compat.MihonRequestContext
+import io.github.landwarderer.futon.mihon.model.snapshot
+import io.github.landwarderer.futon.mihon.state.MihonChapterSnapshotStore
 import io.github.landwarderer.futon.mihon.model.MihonMangaSource
 import io.github.landwarderer.futon.mihon.model.asContentPage
 import io.github.landwarderer.futon.mihon.model.getPublicContentUrl
@@ -54,14 +55,12 @@ class MihonMangaRepository(
     companion object {
         private const val TAG = "MihonMangaRepository"
         private const val MANGA_SNAPSHOT_CACHE_SIZE = 100
-        private const val CHAPTER_SNAPSHOT_CACHE_SIZE = 500
         private const val MAX_RELATED_QUERIES = 6
     }
 
     private var lastOffset = -1
     private var currentPage = 1
     private val mangaSnapshots = LruCache<String, SManga>(MANGA_SNAPSHOT_CACHE_SIZE)
-    private val chapterSnapshots = LruCache<String, SChapter>(CHAPTER_SNAPSHOT_CACHE_SIZE)
 
     val mihonSource = source.catalogueSource
 
@@ -128,7 +127,7 @@ class MihonMangaRepository(
         val sContent = mangaSnapshots.get(manga.url)?.snapshot()
             ?: manga.toContent(source).toMihonManga()
         val existingChapters = manga.chapters.orEmpty().map { chapter ->
-            chapterSnapshots.get(chapter.id.toString())?.snapshot()
+            MihonChapterSnapshotStore.get(source.sourceId, chapter.url)
                 ?: chapter.toContentChapter(source).toMihonChapter()
         }
 
@@ -168,7 +167,7 @@ class MihonMangaRepository(
                     (index + 1).toFloat()
                 }
                 sChapter.toContentChapter(source, fallbackNumber).also { chapter ->
-                    rememberMihonChapter(chapter.id, sChapter)
+                    rememberMihonChapter(sChapter)
                 }
             }
             .sortedBy { it.number }
@@ -184,7 +183,7 @@ class MihonMangaRepository(
     }
 
     override suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
-        val sChapter = chapterSnapshots.get(chapter.id.toString())?.snapshot()
+        val sChapter = MihonChapterSnapshotStore.get(source.sourceId, chapter.url)
             ?: chapter.toContentChapter(source).toMihonChapter()
         val pages = rethrowMihonWrappedExceptions {
             withMihonSourceContext {
@@ -401,8 +400,8 @@ class MihonMangaRepository(
         mangaSnapshots.put(url, manga.snapshot())
     }
 
-    private fun rememberMihonChapter(chapterId: Long, chapter: SChapter) {
-        chapterSnapshots.put(chapterId.toString(), chapter.snapshot())
+    private fun rememberMihonChapter(chapter: eu.kanade.tachiyomi.source.model.SChapter) {
+        MihonChapterSnapshotStore.put(source.sourceId, chapter.url, chapter)
     }
 
     private fun SManga.applyDetailFallbacks(original: SManga) {
@@ -451,22 +450,6 @@ class MihonMangaRepository(
         snapshot.memo = readMihonField(JsonObject(emptyMap())) { memo }
     }
 
-    private fun SChapter.snapshot(): SChapter = SChapter.create().also { snapshot ->
-        snapshot.url = readMihonField("") { url }
-        snapshot.name = readMihonField("") { name }
-        snapshot.date_upload = readMihonField(0L) { date_upload }
-        snapshot.chapter_number = readMihonField(-1f) { chapter_number }
-        snapshot.scanlator = readMihonField<String?>(null) { scanlator }
-        snapshot.number = readMihonField<String?>(null) { number }
-        snapshot.volume = readMihonField<String?>(null) { volume }
-        snapshot.scanlators = readMihonField(emptyList()) { scanlators }
-        snapshot.note = readMihonField<String?>(null) { note }
-        snapshot.memo = readMihonField(JsonObject(emptyMap())) { memo }
-        snapshot.locked = readMihonField(false) { locked }
-        snapshot.read = readMihonField(false) { read }
-        snapshot.last_page_read = readMihonField(0) { last_page_read }
-    }
-
     private fun MangaPage.toMihonPage(imageUrl: String): Page {
         var originalPageUrl = url
         var originalImageUrl = imageUrl
@@ -491,18 +474,6 @@ class MihonMangaRepository(
     private fun defaultImageRequest(url: String): Request = Request.Builder().url(url).build()
 
     private inline fun <T> SManga.readMihonField(defaultValue: T, getter: SManga.() -> T): T {
-        return try {
-            getter()
-        } catch (_: UninitializedPropertyAccessException) {
-            defaultValue
-        } catch (_: AbstractMethodError) {
-            defaultValue
-        } catch (_: NoSuchMethodError) {
-            defaultValue
-        }
-    }
-
-    private inline fun <T> SChapter.readMihonField(defaultValue: T, getter: SChapter.() -> T): T {
         return try {
             getter()
         } catch (_: UninitializedPropertyAccessException) {
