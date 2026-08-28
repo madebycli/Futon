@@ -44,12 +44,12 @@ private class TestLifecycleOwner : LifecycleOwner {
 
 class MihonMangaRepositoryTest {
 
-    private lateinit var mockedProcessLifecycleOwner: MockedStatic<ProcessLifecycleOwner>
+    private lateinit var mockedProcessLifecycleOwner: MockedStatic<ProcessLifecycleOwner.Companion>
 
     @Before
     fun setUp() {
-        mockedProcessLifecycleOwner = Mockito.mockStatic(ProcessLifecycleOwner::class.java)
-        mockedProcessLifecycleOwner.`when`<LifecycleOwner> { ProcessLifecycleOwner.get() }
+        mockedProcessLifecycleOwner = Mockito.mockStatic(ProcessLifecycleOwner.Companion::class.java)
+        mockedProcessLifecycleOwner.`when`<LifecycleOwner> { ProcessLifecycleOwner.Companion.get() }
             .thenReturn(TestLifecycleOwner())
         Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
