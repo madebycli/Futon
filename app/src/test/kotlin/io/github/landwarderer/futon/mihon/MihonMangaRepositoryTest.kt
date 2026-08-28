@@ -12,7 +12,10 @@ import io.github.landwarderer.futon.mihon.model.MihonMangaSource
 import io.github.landwarderer.futon.mihon.model.toDomainContent
 import io.github.landwarderer.futon.mihon.model.toManga
 import io.github.landwarderer.futon.mihon.state.MihonChapterSnapshotStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.After
@@ -30,12 +33,14 @@ class MihonMangaRepositoryTest {
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
     }
 
     @After
     fun tearDown() {
         MihonChapterSnapshotStore.clearForTests()
+        Dispatchers.resetMain()
     }
 
     @Test
