@@ -1,5 +1,6 @@
 package io.github.landwarderer.futon.mihon
 
+import androidx.arch.core.executor.ArchTaskExecutor
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -32,16 +33,15 @@ private fun snapshotPath(chapter: SChapter?): String? {
 
 class MihonMangaRepositoryTest {
 
-    private lateinit var mockedMainLooper: MockedStatic<android.os.Looper>
+    private lateinit var mockedArchTaskExecutor: MockedStatic<ArchTaskExecutor>
 
     @Before
     fun setUp() {
-        val mainLooper = mock(android.os.Looper::class.java)
-        Mockito.`when`(mainLooper.isCurrentThread).thenReturn(true)
-        Mockito.`when`(mainLooper.thread).thenReturn(Thread.currentThread())
-        mockedMainLooper = Mockito.mockStatic(android.os.Looper::class.java)
-        mockedMainLooper.`when`<android.os.Looper> { android.os.Looper.getMainLooper() }
-            .thenReturn(mainLooper)
+        val archTaskExecutor = mock(ArchTaskExecutor::class.java)
+        Mockito.`when`(archTaskExecutor.isMainThread).thenReturn(true)
+        mockedArchTaskExecutor = Mockito.mockStatic(ArchTaskExecutor::class.java)
+        mockedArchTaskExecutor.`when`<ArchTaskExecutor> { ArchTaskExecutor.getInstance() }
+            .thenReturn(archTaskExecutor)
         Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
     }
@@ -50,7 +50,7 @@ class MihonMangaRepositoryTest {
     fun tearDown() {
         MihonChapterSnapshotStore.clearForTests()
         Dispatchers.resetMain()
-        mockedMainLooper.close()
+        mockedArchTaskExecutor.close()
     }
 
     @Test
