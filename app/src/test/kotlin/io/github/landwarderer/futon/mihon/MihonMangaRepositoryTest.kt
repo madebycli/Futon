@@ -1,9 +1,7 @@
 package io.github.landwarderer.futon.mihon
 
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.arch.core.executor.ArchTaskExecutor
+import androidx.arch.core.executor.TaskExecutor
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -26,31 +24,25 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.mockito.MockedStatic
-import org.mockito.Mockito
 import org.mockito.Mockito.mock
 
 private fun snapshotPath(chapter: SChapter?): String? {
     return chapter?.memo?.get("path")?.toString()?.trim('"')
 }
 
-private class TestLifecycleOwner : LifecycleOwner {
-    override val lifecycle: Lifecycle = object : Lifecycle() {
-        override fun addObserver(observer: LifecycleObserver) = Unit
-        override fun removeObserver(observer: LifecycleObserver) = Unit
-        override val currentState: State = State.RESUMED
-    }
-}
-
 class MihonMangaRepositoryTest {
+
+    private val mainThreadTaskExecutor = object : TaskExecutor() {
+        override fun executeOnDiskIO(runnable: Runnable) = runnable.run()
+        override fun postToMainThread(runnable: Runnable) = runnable.run()
+        override fun isMainThread(): Boolean = true
+    }
 
     private lateinit var mockedProcessLifecycleOwner: MockedStatic<ProcessLifecycleOwner.Companion>
 
     @Before
     fun setUp() {
-        mockedProcessLifecycleOwner = Mockito.mockStatic(ProcessLifecycleOwner.Companion::class.java)
-        mockedProcessLifecycleOwner.`when`<LifecycleOwner> { ProcessLifecycleOwner.Companion.get() }
-            .thenReturn(TestLifecycleOwner())
+        ArchTaskExecutor.getInstance().setDelegate(mainThreadTaskExecutor)
         Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
     }
@@ -59,7 +51,7 @@ class MihonMangaRepositoryTest {
     fun tearDown() {
         MihonChapterSnapshotStore.clearForTests()
         Dispatchers.resetMain()
-        mockedProcessLifecycleOwner.close()
+        ArchTaskExecutor.getInstance().setDelegate(null)
     }
 
     @Test
