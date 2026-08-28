@@ -1,15 +1,20 @@
 {
-  "run_id": "33161055561",
-  "source_sha": "1f795b437bbcacf89fee374d49417dbfad2b14c8",
+  "run_id": "33178026349",
+  "source_sha": "33aa754a6e3c0e17030ba92fdcd7d03976200ea1",
   "verify": "success",
   "signed_release": "success",
   "artifact_name": "Futon-Mihon-Fix-Signed-Release",
-  "artifact_id": "9682161782",
-  "artifact_digest": "sha256:58542a0eda9facd56adf5013621136e51e1de74ca344a8dabcbb2e938bc359c3",
+  "artifact_id": "9689815079",
+  "artifact_digest": "sha256:833ab248a78332d8fa0f1faa64765112f0cb4591dab6cf37b5471d9f11ae04b4",
   "apk_filename": "Futon-9.8.1-mihon-fix-test-signed-release.apk",
-  "apk_size_bytes": 21142873,
-  "apk_sha256": "2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28",
+  "apk_size_bytes": 21142869,
+  "apk_sha256": "aafd1afe66dce4f18dfff11887c9622ca1684d6c355d8b652b964a09bbd0c608",
   "signature_verification": "success",
   "signing_kind": "temporary-test-key",
-  "device_validation": "pending"
+  "device_validation": "pending",
+  "run_number": 283,
+  "workflow_event": "push",
+  "samsung_device_evidence": "Google Play Protect blocks Futon as an unknown developer; Trotzdem installieren does not complete.",
+  "stable_key_upload": "pending_on_master_nixos_pc",
+  "developer_verification_or_play_distribution": "pending"
 }

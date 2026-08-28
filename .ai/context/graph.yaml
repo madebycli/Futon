@@ -603,6 +603,51 @@ nodes:
     commits_since_previous_live: 11
     targeted_mihon_areas_changed: false
     action: no_additional_port
+
+  RELEASE_SIGNING_SETUP_33AA:
+    type: release_signing_support
+    status: implemented
+    feature_head: 33aa754a6e3c0e17030ba92fdcd7d03976200ea1
+    files:
+      - scripts/create-release-signing-key.sh
+      - docs/release-signing.md
+    workflow_secret_names:
+      - KEYSTORE_FILE
+      - KEYSTORE_PASSWORD
+      - KEY_ALIAS
+      - KEY_PASSWORD
+    private_key_generated_in_agent_environment: false
+    workflow_requires_secret_upload: true
+  SAMSUNG_PLAY_PROTECT_BLOCK_2026_08_28:
+    type: device_evidence
+    status: confirmed_visible_block
+    device: Samsung Galaxy S25 Ultra
+    evidence: "Google Play Protect blocks Futon because it knows no other apps from this developer; Trotzdem installieren does not complete installation."
+    root_cause_class: unknown_developer_sideload_block
+    malformed_apk_proven: false
+    mihon_runtime_failure_proven: false
+    play_protect_bypass_added: false
+    next_action: stable_key_then_android_developer_verification_or_play_distribution
+    stable_key_device_validation: pending
+  CI_FINAL_33AA:
+    type: ci_validation
+    status: success
+    feature_head: 33aa754a6e3c0e17030ba92fdcd7d03976200ea1
+    workflow: Mihon_Fix_Signed_Test_Build
+    push_run_id: 33178026349
+    push_run_number: 283
+    pr_run_id: 33178030385
+    pr_run_number: 284
+    artifact_name: Futon-Mihon-Fix-Signed-Release
+    artifact_id: 9689815079
+    artifact_digest: sha256:833ab248a78332d8fa0f1faa64765112f0cb4591dab6cf37b5471d9f11ae04b4
+    apk_filename: Futon-9.8.1-mihon-fix-test-signed-release.apk
+    apk_size_bytes: 21142869
+    apk_sha256: aafd1afe66dce4f18dfff11887c9622ca1684d6c355d8b652b964a09bbd0c608
+    signature_verification: success
+    signing_kind: temporary-test-key
+    device_validation: pending
+
 edges:
   - from: FUTON_REPO
     relation: has_branch
@@ -730,3 +775,13 @@ edges:
   - from: KOTOTORO_LIVE_REFRESH_2026_08_28
     relation: refreshes
     to: KOTOTORO_REPO
+
+  - from: RELEASE_SIGNING_SETUP_33AA
+    relation: documents
+    to: FUTON_REPO
+  - from: SAMSUNG_PLAY_PROTECT_BLOCK_2026_08_28
+    relation: blocks
+    to: POST_1F795_DEVICE_VALIDATION
+  - from: CI_FINAL_33AA
+    relation: validates
+    to: RELEASE_SIGNING_SETUP_33AA

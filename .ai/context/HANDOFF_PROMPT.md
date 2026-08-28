@@ -217,3 +217,12 @@ Ein grüner Test darf niemals eine reale Device-Exception wegbeweisen.
 ## Finaler Upstream-Refresh
 
 Der live geprüfte aktuelle Kototoro-Head ist `19cbb0790744eb28e5accead7e9514d976b02f3d`. Der Delta seit `f4f37a5b7290da05c10b9325912f2a37ebeff0f9` umfasst 11 Commits, ohne Änderungen in den relevanten Mihon/Tachiyomi-Referenzbereichen. Deshalb wurde in diesem Refresh keine weitere Funktion portiert.
+
+
+## Current Samsung Play Protect and release-signing status
+
+- The current branch source/documentation head is `33aa754a6e3c0e17030ba92fdcd7d03976200ea1`.
+- The NixOS key setup is in `scripts/create-release-signing-key.sh`; use `--upload` only after creating and backing up the key locally. The workflow already expects `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`.
+- Samsung Galaxy S25 Ultra evidence is a Google Play Protect block for an unknown developer. The exact visible text says the developer has no other known apps, and `Trotzdem installieren` still does not finish. Do not add an app-side bypass or claim that a stable key alone resolves this.
+- The first stable-key Samsung test remains pending. If an older temporary Futon is installed, uninstall/reinstall once because the signing identity changes. If a clean install is still blocked, use Android Developer Verification or Play distribution for the final developer identity and capture the next installer code.
+- Push run `33178026349` and PR run `33178030385` both passed all required Mihon, R8, ABI, signature, and artifact checks. The artifact uses `temporary-test-key` until the Master uploads the stable key.

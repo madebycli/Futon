@@ -281,3 +281,19 @@ For any failure, capture logcat around the **first real exception** and group re
 - The previous audit head was `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`; the `f4f37a...` -> `19cbb0...` comparison contains 11 commits.
 - The changed files are outside the targeted Mihon/Tachiyomi Source ABI, HttpSource, NetworkHelper, Cloudflare/captcha, WebView, loader/classloader, and generic download-slowdown areas. No parity port was added.
 - Keiyoushi `extensions-lib/main` remains live-verified at `18a8e26be2320b48bdaa11840170479b62989e23`.
+
+
+## Release signing preparation and Samsung Play Protect evidence
+
+- Feature source/documentation head for this update: `33aa754a6e3c0e17030ba92fdcd7d03976200ea1`.
+- `scripts/create-release-signing-key.sh` creates a local long-lived JKS key on NixOS, refuses to overwrite an existing keystore, verifies it, and uploads only the existing `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD` secrets when invoked with explicit `--upload`.
+- `docs/release-signing.md` documents local-only creation, encrypted offline backup, GitHub CLI upload, stable-key update behavior, and Samsung diagnostics. No private key was generated or stored in this environment.
+- The existing workflow already consumes these four secrets and reports `Signing: repository-release-key` when they are present. Until the Master creates and uploads the key on NixOS, the CI artifact remains `temporary-test-key`.
+- New real-device evidence from the Samsung Galaxy S25 Ultra: Google Play Protect displays `App wurde zum Schutz deines Geräts blockiert` and says that it does not yet know other apps from this developer. Selecting `Trotzdem installieren` still does not complete installation.
+- This classifies the visible Samsung failure as a Play-Protect unknown-developer/sideload block. It is not evidence of a malformed APK, a Mihon runtime failure, or a reason to add a Play-Protect bypass. The temporary signature is not sufficient as the sole explanation because another temporary-signed app installed on the same device.
+- The existing `REQUEST_INSTALL_PACKAGES` manifest permission is retained because `ExtensionInstallService` launches the package installer for downloaded extension APKs. No speculative manifest or package-identity change was made.
+- `Mihon Fix Signed Test Build` push run `33178026349`, run number `283`, attempt 3: success after attempts 1 and 2 hit the external JitPack read timeout for `com.github.AppFuton:subsampling-scale-image-view:v4.1`.
+- The same workflow PR run `33178030385`, run number `284`, also succeeded. Mihon regression tests, release lint, optimized R8 build, optimized ABI gate, APK signature verification, and artifact upload all passed.
+- Final push artifact: `Futon-Mihon-Fix-Signed-Release`, artifact id `9689815079`, ZIP SHA-256 `833ab248a78332d8fa0f1faa64765112f0cb4591dab6cf37b5471d9f11ae04b4`.
+- APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`, size `21142869` bytes, SHA-256 `aafd1afe66dce4f18dfff11887c9622ca1684d6c355d8b652b964a09bbd0c608`.
+- CI signature verification passed. Local `apksigner` was unavailable in this environment. Stable-key Samsung installation and Android Developer Verification or Play distribution remain pending.
