@@ -44,7 +44,8 @@ class MihonMangaRepositoryTest {
     }
 
     @Test
-    fun chapterSnapshotSurvivesRepositoryInstanceChange() = runTest {
+    fun chapterSnapshotSurvivesRepositoryInstanceChange() = try {
+        runTest {
         val chapter = chapterWithMetadata()
         val source = SnapshotCatalogueSource(SOURCE_ID, chapter)
         val sourceWrapperA = MihonMangaSource(source, "test.snapshot.a")
@@ -75,6 +76,10 @@ class MihonMangaRepositoryTest {
         assertEquals(1, pages.size)
         assertEquals("private/chapter/path", source.observedPath)
         assertTrue(source.receivedPageRequest)
+        }
+    } catch (error: Throwable) {
+        error.printStackTrace()
+        throw error
     }
 
     @Test
