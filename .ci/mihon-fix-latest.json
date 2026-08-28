@@ -1,6 +1,15 @@
 {
-  "run_id": "33012858721",
-  "source_sha": "9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f",
+  "run_id": "33159391334",
+  "source_sha": "22032fac0dc413c2cfa3af5d9bbd196d82f7fc93",
   "verify": "success",
-  "signed_release": "success"
+  "signed_release": "success",
+  "artifact_name": "Futon-Mihon-Fix-Signed-Release",
+  "artifact_id": "9681476261",
+  "artifact_digest": "sha256:4900f0cac3668f66098d98efcd6da7fa507a01caa6e55d4e71d28b7c6bd85b44",
+  "apk_filename": "Futon-9.8.1-mihon-fix-test-signed-release.apk",
+  "apk_size_bytes": 21142873,
+  "apk_sha256": "acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee",
+  "signature_verification": "success",
+  "signing_kind": "temporary-test-key",
+  "device_validation": "pending"
 }

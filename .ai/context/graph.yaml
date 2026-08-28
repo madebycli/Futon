@@ -1,6 +1,6 @@
 schema_version: 1
 project: Futon-Mihon-Compatibility
-updated_at: 2026-08-27
+updated_at: 2026-08-28
 update_policy:
   mandatory: true
   rule: "After every meaningful device result, upstream comparison, code fix, regression test, CI result, or reference-SHA change, update this graph and STATE.md."
@@ -23,6 +23,8 @@ nodes:
     tested_pr_head_before_context_refresh: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
     latest_app_source_head_in_tested_tree: 85f19b491f2c4837e95c99e828fdb28f32d960c0
     tested_tree_sha: 9324f0bf91078df59a7ccd922082b69806c37c10
+    latest_snapshot_fix_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
+    shared_chapter_snapshot_commit: 88006baa10d45dfb1a28c7721a74ce85876e0c45
     note: "Context/status commits use [skip ci] and may advance branch head without changing the tested app tree."
 
   PR_1:
@@ -35,7 +37,7 @@ nodes:
     state: open
     merged: false
     merge_allowed_without_user: false
-    live_verified_at: 2026-08-27
+    live_verified_at: 2026-08-28
 
   APP_VERSION:
     type: version
@@ -487,6 +489,81 @@ nodes:
       - never_expose_signing_secrets
       - never_claim_device_fixed_without_current_device_evidence
 
+  FUTON_MIHON_COMPAT_BOUNDARY:
+    type: architecture_boundary
+    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/compat/**
+    responsibility: "Mihon host ABI, request context, and dynamic extension compatibility."
+
+  FUTON_MIHON_MODEL_BOUNDARY:
+    type: architecture_boundary
+    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/model/**
+    responsibility: "Mihon/Futon data conversion and complete model snapshot helpers."
+
+  FUTON_MIHON_STATE_BOUNDARY:
+    type: architecture_boundary
+    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/state/**
+    responsibility: "Process-local Mihon integration state, including the bounded shared chapter snapshot store."
+
+  FUTON_MIHON_NETWORK_CLOUDFLARE_BOUNDARY:
+    type: architecture_boundary
+    paths:
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/compat/**
+      - app/src/main/kotlin/io/github/landwarderer/futon/core/network/**
+      - app/src/main/kotlin/io/github/landwarderer/futon/core/exceptions/**
+    responsibility: "Existing Mihon network, source-context, WebView, and Cloudflare handling; no parallel architecture added here."
+
+  FUTON_MIHON_LOADER_MANAGER_BOUNDARY:
+    type: architecture_boundary
+    paths:
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/extensions/**
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/ExtensionRepoService.kt
+    responsibility: "Extension loader and manager behavior, including runtime classloader policy."
+
+  FIX_SHARED_CHAPTER_SNAPSHOT:
+    type: fix
+    status: implemented_tested_and_signed_apk_verified
+    commit: 88006baa10d45dfb1a28c7721a74ce85876e0c45
+    tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
+    files:
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/state/MihonChapterSnapshotStore.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/model/MihonModelSnapshots.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/MihonMangaRepository.kt
+      - app/src/test/kotlin/io/github/landwarderer/futon/mihon/MihonMangaRepositoryTest.kt
+    key: "sourceId + exact chapter URL"
+    max_entries: 500
+    process_local: true
+    synchronized: true
+    defensive_put_and_get_copies: true
+    repository_instance_change_test: MihonMangaRepositoryTest.chapterSnapshotSurvivesRepositoryInstanceChange
+    source_isolation_test: MihonMangaRepositoryTest.sourceIdsIsolateIdenticalChapterUrls
+    defensive_copy_test: MihonMangaRepositoryTest.returnedChapterSnapshotIsDefensiveCopy
+
+  CURRENT_CI_22032:
+    type: evidence
+    tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
+    workflow: Mihon Fix Signed Test Build
+    run_id: 33159391334
+    run_number: 277
+    status: success
+    focused_mihon_tests: success
+    release_lint: success
+    optimized_r8_release: success
+    optimized_abi_gate: success
+    signature_verify: success
+    signed_artifact_name: Futon-Mihon-Fix-Signed-Release
+    signed_artifact_id: 9681476261
+    signed_apk_sha256: acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee
+    signing_kind: temporary-test-key
+
+  POST_22032_DEVICE_VALIDATION:
+    type: unresolved_test
+    status: open
+    evidence_received: false
+    tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
+    signed_artifact_id: 9681476261
+    signed_apk_sha256: acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee
+    supersedes: POST_9E5_DEVICE_VALIDATION
+    note: "CI and optimized APK checks are green; real-device validation remains pending."
 edges:
   - from: FUTON_REPO
     relation: has_branch
@@ -583,4 +660,22 @@ edges:
     to: KOTOTORO_REPO
   - from: SAFETY_CONSTRAINTS
     relation: governs
+    to: FUTON_FIX_BRANCH
+  - from: FUTON_FIX_BRANCH
+    relation: contains
+    to: FIX_SHARED_CHAPTER_SNAPSHOT
+  - from: FIX_SHARED_CHAPTER_SNAPSHOT
+    relation: belongs_to
+    to: FUTON_MIHON_STATE_BOUNDARY
+  - from: FIX_SHARED_CHAPTER_SNAPSHOT
+    relation: uses
+    to: FUTON_MIHON_MODEL_BOUNDARY
+  - from: FIX_SHARED_CHAPTER_SNAPSHOT
+    relation: validated_by
+    to: CURRENT_CI_22032
+  - from: POST_9E5_DEVICE_VALIDATION
+    relation: superseded_by
+    to: POST_22032_DEVICE_VALIDATION
+  - from: CURRENT_CI_22032
+    relation: validates
     to: FUTON_FIX_BRANCH

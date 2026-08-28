@@ -1,6 +1,6 @@
 # Current Mihon/Keiyoushi Compatibility State
 
-Last manually refreshed: 2026-08-27
+Last manually refreshed: 2026-08-28
 
 ## Repository state
 
@@ -16,6 +16,40 @@ Last manually refreshed: 2026-08-27
 - The PR workflow built synthetic merge commit `fd2effcb2a90f2eae4047498f6734cebb9563682`. Its tree is `9324f0bf91078df59a7ccd922082b69806c37c10`, identical to tested PR head `9e5b792...`.
 
 Always re-fetch live values before new work. Context/status commits use `[skip ci]` and may advance the branch while `9e5b792...` remains the currently tested PR source tree until another app/test source change is made.
+
+
+## Shared chapter snapshot fix (2026-08-28)
+
+- Confirmed root cause: `chapterSnapshots` was repository-instance-local. A chapter list received by repository A could be followed by a page request through repository B, where the full extension-provided `SChapter` metadata was no longer available and Futon reconstructed a reduced chapter.
+- Fix commit: `88006baa10d45dfb1a28c7721a74ce85876e0c45` (`fix(mihon): preserve chapter snapshots across repositories`). The final tested source/test head is `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`.
+- `MihonChapterSnapshotStore` is process-local, shared across repository instances, synchronized through a private lock, backed by an LRU with a hard maximum of 500 entries, and not persisted.
+- Its exact source-aware key is `(sourceId: Long, chapterUrl: String)`. The chapter URL is stored exactly as received, without normalization or resolution against a base URL. Blank URLs are ignored.
+- `MihonModelSnapshots.kt` contains the existing complete `SChapter.snapshot()` field-copying logic, including modern/private fields such as `number`, `volume`, `scanlators`, `note`, `memo`, `locked`, `read`, and `last_page_read`. The store copies on put and get.
+- `MihonMangaRepository` now stores extension chapters using `source.sourceId + chapter.url`, looks up the shared snapshot first in `getDetailsImpl` and `getPagesImpl`, and retains only the repository-local `mangaSnapshots` cache. The old per-instance `chapterSnapshots` cache is removed.
+- `MihonMangaRepositoryTest` exercises the public `getDetails` and `getPages` calls across two repository instances, verifies private metadata survives, verifies source isolation for identical URLs, and verifies defensive copies. Each test clears the store before and after execution.
+- The workflow explicitly runs `io.github.landwarderer.futon.mihon.MihonMangaRepositoryTest` in addition to the existing contract, network, classloader, and converter tests.
+
+## Current CI / APK validation for snapshot-fix head
+
+- Workflow: `Mihon Fix Signed Test Build`.
+- Run `33159391334` (run number `277`) for source `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`: `success`.
+- Mihon regression tests: `success`.
+- Release lint diagnostic: `success`.
+- Optimized R8 release build: `success`.
+- Optimized Mihon runtime ABI gate: `success`.
+- APK signature verification in CI: `success`.
+- Signed artifact: `Futon-Mihon-Fix-Signed-Release`, artifact id `9681476261`, GitHub artifact digest `sha256:4900f0cac3668f66098d98efcd6da7fa507a01caa6e55d4e71d28b7c6bd85b44`.
+- APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`, size `21142873` bytes, SHA-256 `acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee`.
+- Signing kind: `temporary-test-key`; the CI signature check passed, but this key cannot update an installation signed with another key. No local `apksigner` binary was available in this environment.
+- No new real-device evidence is present. `POST_22032_DEVICE_VALIDATION` remains open for the current signed APK.
+
+## Kototoro and extensions-lib parity audit for snapshot-fix head
+
+- Kototoro `devel` was live checked at `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`.
+- Compared areas: modern/legacy Source and HttpSource ABI, KotoNetworkHelper, Cloudflare/captcha handler and coordinator, CloudFlareSingleFlight, WebView executor, source settings, classloader policy, and generic download slowdown.
+- Futon already contains the corresponding host ABI, request/source context, retained Cloudflare WebView plus manual fallback path, classloader policy, and generic download slowdown implementation. No second Cloudflare architecture and no artificial delay were added.
+- Kototoro's newer Cloudflare orchestration remains an unverified parity delta because no current device failure demonstrates that Futon's retained path is insufficient.
+- Keiyoushi `extensions-lib/main` was live checked at `18a8e26be2320b48bdaa11840170479b62989e23`. No deprecated upstream API was introduced by this fix.
 
 ## Current CI / APK validation for tested head 9e5b792
 
@@ -225,7 +259,7 @@ The previous `POST_157D_DEVICE_VALIDATION` node is therefore superseded by the n
 
 ## Next decisive validation
 
-`POST_9E5_DEVICE_VALIDATION` is the current project-level runtime validation node.
+`POST_22032_DEVICE_VALIDATION` is the current project-level runtime validation node and supersedes `POST_9E5_DEVICE_VALIDATION`.
 
 Install the current signed APK and exercise:
 

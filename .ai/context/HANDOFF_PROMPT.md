@@ -45,7 +45,43 @@ PR #1 wurde live als offen, Draft, ungemergt gegen `devel` verifiziert. Base SHA
 
 Der `pull_request` Workflow baute synthetischen Merge `fd2effcb2a90f2eae4047498f6734cebb9563682`. Dessen Tree `9324f0bf91078df59a7ccd922082b69806c37c10` ist identisch mit dem Tree des getesteten PR-Heads `9e5b792...`.
 
-### Aktuelles CI
+#
+## Verifizierter Snapshot-Fix-Stand, 2026-08-28
+
+Der Shared Chapter Snapshot Fix ist in `88006baa10d45dfb1a28c7721a74ce85876e0c45` enthalten. Der getestete Source-/Test-Head ist `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`.
+
+Die bestätigte Root Cause war ein repository-instanzlokaler Chapter-Snapshot-Cache. Der generische process-lokale Store liegt in `mihon/state/MihonChapterSnapshotStore.kt`, nutzt exakt `sourceId + chapterUrl`, speichert höchstens 500 Einträge, synchronisiert jeden Zugriff über einen privaten Lock und gibt defensive `SChapter`-Kopien auf Ein- und Ausgabe zurück. Die vollständige Kopierlogik liegt gemeinsam in `mihon/model/MihonModelSnapshots.kt`. `mangaSnapshots` bleibt repository-lokal.
+
+`MihonMangaRepositoryTest` beweist den öffentlichen Repository-Lebenszyklus Repository A -> Repository B, Source-Isolation bei identischer URL und defensive Kopien. Der Workflow filtert diese Klasse explizit.
+
+### CI und APK
+
+- Workflow-Run: `33159391334` / Run `277`, vollständig erfolgreich.
+- Artifact: `Futon-Mihon-Fix-Signed-Release`, id `9681476261`.
+- APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`.
+- APK SHA-256: `acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee`.
+- Signing: `temporary-test-key`; CI-Signaturprüfung erfolgreich, aber nicht als Update über eine anders signierte Installation verwendbar.
+- Reale Gerätevalidierung des aktuellen APKs ist noch ausstehend: `POST_22032_DEVICE_VALIDATION`.
+
+### Feste Upstream-Sync-Prozedur
+
+Bei jedem späteren Kototoro/Mihon/Keiyoushi-Update exakt diese Reihenfolge einhalten:
+
+1. Futon Feature-Head live lesen.
+2. Futon `devel` live lesen.
+3. Kototoro `devel` live lesen.
+4. `keiyoushi/extensions-lib/main` live lesen.
+5. Nur die entsprechenden Mihon/Tachiyomi-Grenzen vergleichen.
+6. API-Additions, API-Removals und Verhaltensänderungen getrennt erfassen.
+7. Den kleinsten semantisch notwendigen Delta portieren.
+8. Keine komplette Upstream-Datei blind ersetzen.
+9. Unit-/Contract-Tests ausführen.
+10. Den optimierten R8-APK prüfen.
+11. Die Kontextdateien mit den tatsächlich geprüften SHAs aktualisieren.
+
+Die logischen Futon-Grenzen bleiben `mihon/compat/**` für Host-ABI/Request Context/dynamische Extension-Kompatibilität, `mihon/model/**` für Konvertierung/Snapshots, `mihon/state/**` für process-lokalen Integrationszustand, die bestehenden Network-/Cloudflare-Bereiche sowie die bestehenden Extension Loader-/Manager-Bereiche. Kein neues Gradle-Modul anlegen.
+
+## Aktuelles CI
 
 Für tested head `9e5b792...`:
 
