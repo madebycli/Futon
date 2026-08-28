@@ -38,8 +38,6 @@ class MihonMangaRepositoryTest {
         override fun isMainThread(): Boolean = true
     }
 
-    private lateinit var mockedProcessLifecycleOwner: MockedStatic<ProcessLifecycleOwner.Companion>
-
     @Before
     fun setUp() {
         ArchTaskExecutor.getInstance().setDelegate(mainThreadTaskExecutor)
