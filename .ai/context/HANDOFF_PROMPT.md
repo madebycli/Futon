@@ -111,9 +111,10 @@ Kototoro:
 
 - Repo: `Kototoro-app/Kototoro`
 - Branch: `devel`
-- zuletzt live verifiziert: `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`
+- zuletzt live verifiziert: `19cbb0790744eb28e5accead7e9514d976b02f3d`
+- vorheriger Audit-SHA: `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`
 - vorheriger Kontext-SHA: `dec0ef781644245f6937dc1cafc8ca84963fe08e`
-- zwischen `dec0ef...` und `f4f37...` liegen 9 Commits, aber keine Änderungen an den hier verwendeten Mihon/Tachiyomi-Runtime-, Source-ABI-, NetworkHelper-, ClassLoader- oder Extension-Runtime-Referenzdateien
+- zwischen `f4f37a...` und `19cbb0...` liegen 11 Commits, aber keine Änderungen an den hier verwendeten Mihon/Tachiyomi-Runtime-, Source-ABI-, NetworkHelper-, Cloudflare-, WebView-, ClassLoader- oder Download-Slowdown-Referenzdateien
 
 Wichtige aktuelle Kototoro-Referenzdateien:
 
@@ -164,7 +165,7 @@ Alle Details und frühere CI-Regressionen stehen in `STATE.md` und `graph.yaml`.
 
 ## Offene, aber noch unbewiesene Kototoro-Paritätsdifferenz
 
-Aktuelles Kototoro hat eine neuere Cloudflare/Captcha-Orchestrierung als Futon:
+Aktuelles Kototoro am live geprüften Head `19cbb0790744eb28e5accead7e9514d976b02f3d` hat eine neuere Cloudflare/Captcha-Orchestrierung als Futon:
 
 - `CloudFlareSingleFlight`
 - Resolver-State
@@ -211,3 +212,8 @@ Für jeden Fehler:
 5. Annahmen
 
 Ein grüner Test darf niemals eine reale Device-Exception wegbeweisen.
+
+
+## Finaler Upstream-Refresh
+
+Der live geprüfte aktuelle Kototoro-Head ist `19cbb0790744eb28e5accead7e9514d976b02f3d`. Der Delta seit `f4f37a5b7290da05c10b9325912f2a37ebeff0f9` umfasst 11 Commits, ohne Änderungen in den relevanten Mihon/Tachiyomi-Referenzbereichen. Deshalb wurde in diesem Refresh keine weitere Funktion portiert.

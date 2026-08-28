@@ -102,9 +102,10 @@ Do not treat symbols that are not part of the current host contract or current w
 
 - Repository: `Kototoro-app/Kototoro`
 - Branch: `devel`
-- Live verified SHA: `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`
+- Live verified SHA: `19cbb0790744eb28e5accead7e9514d976b02f3d`
+- Previous live verified SHA in this refresh: `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`.
 - Previous recorded reference SHA: `dec0ef781644245f6937dc1cafc8ca84963fe08e`.
-- Comparing `dec0ef...` to `f4f37...` shows 9 newer commits, but they do not modify the Mihon/Tachiyomi runtime, Source ABI, network helper, classloader policy, or extension-runtime files used as the compatibility reference here.
+- Comparing `f4f37a...` to `19cbb0...` shows 11 newer commits. They do not modify the Mihon/Tachiyomi runtime, Source ABI, network helper, Cloudflare/captcha, WebView executor, classloader policy, extension-runtime, or generic download-slowdown reference files used here.
 - Current `TachiyomiApkClassLoaderPolicy.kt` still uses explicit host-owned ABI packages plus child-first `$-CC` / `$DefaultImpls` bridge exceptions.
 - Current `HttpSource.kt` continues the modern suspend API plus legacy `fetch*` compatibility pattern used as Futon's reference.
 - Current Kototoro Cloudflare/captcha orchestration is newer than Futon's retained implementation. This is an unverified parity delta, not a confirmed current device root cause.
@@ -272,3 +273,11 @@ Install the current signed APK and exercise:
 If installation fails because another Futon build is installed, remember this test APK uses a temporary signing key and cannot update a differently signed installation.
 
 For any failure, capture logcat around the **first real exception** and group repeated lines by unique root cause. Device evidence has priority over all CI results. For ABI/ClassLoader-family failures, compare `TachiyomiApkClassLoaderPolicy` with current Kototoro first. For Cloudflare/captcha failures, compare the current Kototoro SingleFlight/resolver-state/strategy path before inventing another local workaround.
+
+
+## Final Kototoro refresh (2026-08-28)
+
+- The current live Kototoro `devel` head is `19cbb0790744eb28e5accead7e9514d976b02f3d`.
+- The previous audit head was `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`; the `f4f37a...` -> `19cbb0...` comparison contains 11 commits.
+- The changed files are outside the targeted Mihon/Tachiyomi Source ABI, HttpSource, NetworkHelper, Cloudflare/captcha, WebView, loader/classloader, and generic download-slowdown areas. No parity port was added.
+- Keiyoushi `extensions-lib/main` remains live-verified at `18a8e26be2320b48bdaa11840170479b62989e23`.
