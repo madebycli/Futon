@@ -22,6 +22,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.MockedStatic
+import org.mockito.Mockito
 import org.mockito.Mockito.mock
 
 private fun snapshotPath(chapter: SChapter?): String? {
@@ -30,8 +32,16 @@ private fun snapshotPath(chapter: SChapter?): String? {
 
 class MihonMangaRepositoryTest {
 
+    private lateinit var mockedMainLooper: MockedStatic<android.os.Looper>
+
     @Before
     fun setUp() {
+        val mainLooper = mock(android.os.Looper::class.java)
+        Mockito.`when`(mainLooper.isCurrentThread).thenReturn(true)
+        Mockito.`when`(mainLooper.thread).thenReturn(Thread.currentThread())
+        mockedMainLooper = Mockito.mockStatic(android.os.Looper::class.java)
+        mockedMainLooper.`when`<android.os.Looper> { android.os.Looper.getMainLooper() }
+            .thenReturn(mainLooper)
         Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
     }
@@ -40,6 +50,7 @@ class MihonMangaRepositoryTest {
     fun tearDown() {
         MihonChapterSnapshotStore.clearForTests()
         Dispatchers.resetMain()
+        mockedMainLooper.close()
     }
 
     @Test
