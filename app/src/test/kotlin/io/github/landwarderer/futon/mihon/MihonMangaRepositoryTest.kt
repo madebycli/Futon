@@ -1,6 +1,5 @@
 package io.github.landwarderer.futon.mihon
 
-import android.app.Application
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -44,8 +43,7 @@ class MihonMangaRepositoryTest {
     }
 
     @Test
-    fun chapterSnapshotSurvivesRepositoryInstanceChange() = try {
-        runTest {
+    fun chapterSnapshotSurvivesRepositoryInstanceChange() = runTest {
         val chapter = chapterWithMetadata()
         val source = SnapshotCatalogueSource(SOURCE_ID, chapter)
         val sourceWrapperA = MihonMangaSource(source, "test.snapshot.a")
@@ -57,12 +55,7 @@ class MihonMangaRepositoryTest {
             initialized = true
         }.toDomainContent(sourceWrapperA).toManga()
 
-        val details = try {
-            repositoryA.getDetails(initialManga)
-        } catch (error: Throwable) {
-            error.printStackTrace()
-            throw error
-        }
+        val details = repositoryA.getDetails(initialManga)
         val returnedChapter = requireNotNull(details.chapters).single()
 
         chapter.memo = buildJsonObject {
@@ -76,10 +69,6 @@ class MihonMangaRepositoryTest {
         assertEquals(1, pages.size)
         assertEquals("private/chapter/path", source.observedPath)
         assertTrue(source.receivedPageRequest)
-        }
-    } catch (error: Throwable) {
-        error.printStackTrace()
-        throw error
     }
 
     @Test
@@ -111,7 +100,7 @@ class MihonMangaRepositoryTest {
     }
 
     private fun memoryCache(): MemoryContentCache {
-        return MemoryContentCache(mock(Application::class.java))
+        return mock(MemoryContentCache::class.java)
     }
 
     private fun chapterWithMetadata(path: String = "private/chapter/path"): SChapter {
