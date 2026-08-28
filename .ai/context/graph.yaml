@@ -24,6 +24,7 @@ nodes:
     latest_app_source_head_in_tested_tree: 85f19b491f2c4837e95c99e828fdb28f32d960c0
     tested_tree_sha: 9324f0bf91078df59a7ccd922082b69806c37c10
     latest_snapshot_fix_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
+    final_ci_verified_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
     shared_chapter_snapshot_commit: 88006baa10d45dfb1a28c7721a74ce85876e0c45
     note: "Context/status commits use [skip ci] and may advance branch head without changing the tested app tree."
 
@@ -133,8 +134,8 @@ nodes:
   CI_STATUS_FILE:
     type: evidence
     path: .ci/mihon-fix-latest.json
-    run_id: 33012858721
-    source_sha: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
+    run_id: 33161055561
+    source_sha: 1f795b437bbcacf89fee374d49417dbfad2b14c8
     verify: success
     signed_release: success
 
@@ -524,6 +525,7 @@ nodes:
     status: implemented_tested_and_signed_apk_verified
     commit: 88006baa10d45dfb1a28c7721a74ce85876e0c45
     tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
+    final_ci_verified_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
     files:
       - app/src/main/kotlin/io/github/landwarderer/futon/mihon/state/MihonChapterSnapshotStore.kt
       - app/src/main/kotlin/io/github/landwarderer/futon/mihon/model/MihonModelSnapshots.kt
@@ -563,6 +565,32 @@ nodes:
     signed_artifact_id: 9681476261
     signed_apk_sha256: acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee
     supersedes: POST_9E5_DEVICE_VALIDATION
+    note: "CI and optimized APK checks are green; real-device validation remains pending."
+  FINAL_CI_1F795:
+    type: evidence
+    tested_feature_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
+    workflow: Mihon Fix Signed Test Build
+    run_id: 33161055561
+    run_number: 279
+    status: success
+    focused_mihon_tests: success
+    release_lint: success
+    optimized_r8_release: success
+    optimized_abi_gate: success
+    signature_verify: success
+    signed_artifact_name: Futon-Mihon-Fix-Signed-Release
+    signed_artifact_id: 9682161782
+    signed_apk_sha256: 2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28
+    signing_kind: temporary-test-key
+
+  POST_1F795_DEVICE_VALIDATION:
+    type: unresolved_test
+    status: open
+    evidence_received: false
+    tested_feature_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
+    signed_artifact_id: 9682161782
+    signed_apk_sha256: 2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28
+    supersedes: POST_22032_DEVICE_VALIDATION
     note: "CI and optimized APK checks are green; real-device validation remains pending."
 edges:
   - from: FUTON_REPO
@@ -679,3 +707,12 @@ edges:
   - from: CURRENT_CI_22032
     relation: validates
     to: FUTON_FIX_BRANCH
+  - from: FUTON_FIX_BRANCH
+    relation: validated_by
+    to: FINAL_CI_1F795
+  - from: POST_22032_DEVICE_VALIDATION
+    relation: superseded_by
+    to: POST_1F795_DEVICE_VALIDATION
+  - from: CI_STATUS_FILE
+    relation: records
+    to: FINAL_CI_1F795

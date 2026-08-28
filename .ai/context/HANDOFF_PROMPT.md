@@ -48,7 +48,7 @@ Der `pull_request` Workflow baute synthetischen Merge `fd2effcb2a90f2eae4047498f
 #
 ## Verifizierter Snapshot-Fix-Stand, 2026-08-28
 
-Der Shared Chapter Snapshot Fix ist in `88006baa10d45dfb1a28c7721a74ce85876e0c45` enthalten. Der getestete Source-/Test-Head ist `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`.
+Der Shared Chapter Snapshot Fix ist in `88006baa10d45dfb1a28c7721a74ce85876e0c45` enthalten. Der Source-/Test-Head ist `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`; der finale CI-verifizierte Feature-Head ist `1f795b437bbcacf89fee374d49417dbfad2b14c8`.
 
 Die bestätigte Root Cause war ein repository-instanzlokaler Chapter-Snapshot-Cache. Der generische process-lokale Store liegt in `mihon/state/MihonChapterSnapshotStore.kt`, nutzt exakt `sourceId + chapterUrl`, speichert höchstens 500 Einträge, synchronisiert jeden Zugriff über einen privaten Lock und gibt defensive `SChapter`-Kopien auf Ein- und Ausgabe zurück. Die vollständige Kopierlogik liegt gemeinsam in `mihon/model/MihonModelSnapshots.kt`. `mangaSnapshots` bleibt repository-lokal.
 
@@ -56,12 +56,12 @@ Die bestätigte Root Cause war ein repository-instanzlokaler Chapter-Snapshot-Ca
 
 ### CI und APK
 
-- Workflow-Run: `33159391334` / Run `277`, vollständig erfolgreich.
-- Artifact: `Futon-Mihon-Fix-Signed-Release`, id `9681476261`.
+- Workflow-Run: `33161055561` / Run `279`, vollständig erfolgreich.
+- Artifact: `Futon-Mihon-Fix-Signed-Release`, id `9682161782`.
 - APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`.
-- APK SHA-256: `acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee`.
+- APK SHA-256: `2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28`.
 - Signing: `temporary-test-key`; CI-Signaturprüfung erfolgreich, aber nicht als Update über eine anders signierte Installation verwendbar.
-- Reale Gerätevalidierung des aktuellen APKs ist noch ausstehend: `POST_22032_DEVICE_VALIDATION`.
+- Reale Gerätevalidierung des aktuellen APKs ist noch ausstehend: `POST_1F795_DEVICE_VALIDATION`.
 
 ### Feste Upstream-Sync-Prozedur
 

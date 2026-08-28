@@ -21,7 +21,7 @@ Always re-fetch live values before new work. Context/status commits use `[skip c
 ## Shared chapter snapshot fix (2026-08-28)
 
 - Confirmed root cause: `chapterSnapshots` was repository-instance-local. A chapter list received by repository A could be followed by a page request through repository B, where the full extension-provided `SChapter` metadata was no longer available and Futon reconstructed a reduced chapter.
-- Fix commit: `88006baa10d45dfb1a28c7721a74ce85876e0c45` (`fix(mihon): preserve chapter snapshots across repositories`). The final tested source/test head is `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`.
+- Fix commit: `88006baa10d45dfb1a28c7721a74ce85876e0c45` (`fix(mihon): preserve chapter snapshots across repositories`). The final CI-verified feature head is `1f795b437bbcacf89fee374d49417dbfad2b14c8`; the source/test implementation head is `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`.
 - `MihonChapterSnapshotStore` is process-local, shared across repository instances, synchronized through a private lock, backed by an LRU with a hard maximum of 500 entries, and not persisted.
 - Its exact source-aware key is `(sourceId: Long, chapterUrl: String)`. The chapter URL is stored exactly as received, without normalization or resolution against a base URL. Blank URLs are ignored.
 - `MihonModelSnapshots.kt` contains the existing complete `SChapter.snapshot()` field-copying logic, including modern/private fields such as `number`, `volume`, `scanlators`, `note`, `memo`, `locked`, `read`, and `last_page_read`. The store copies on put and get.
@@ -32,16 +32,16 @@ Always re-fetch live values before new work. Context/status commits use `[skip c
 ## Current CI / APK validation for snapshot-fix head
 
 - Workflow: `Mihon Fix Signed Test Build`.
-- Run `33159391334` (run number `277`) for source `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`: `success`.
+- Run `33161055561` (run number `279`) for source `1f795b437bbcacf89fee374d49417dbfad2b14c8`: `success`.
 - Mihon regression tests: `success`.
 - Release lint diagnostic: `success`.
 - Optimized R8 release build: `success`.
 - Optimized Mihon runtime ABI gate: `success`.
 - APK signature verification in CI: `success`.
-- Signed artifact: `Futon-Mihon-Fix-Signed-Release`, artifact id `9681476261`, GitHub artifact digest `sha256:4900f0cac3668f66098d98efcd6da7fa507a01caa6e55d4e71d28b7c6bd85b44`.
-- APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`, size `21142873` bytes, SHA-256 `acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee`.
+- Signed artifact: `Futon-Mihon-Fix-Signed-Release`, artifact id `9682161782`, GitHub artifact digest `sha256:58542a0eda9facd56adf5013621136e51e1de74ca344a8dabcbb2e938bc359c3`.
+- APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`, size `21142873` bytes, SHA-256 `2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28`.
 - Signing kind: `temporary-test-key`; the CI signature check passed, but this key cannot update an installation signed with another key. No local `apksigner` binary was available in this environment.
-- No new real-device evidence is present. `POST_22032_DEVICE_VALIDATION` remains open for the current signed APK.
+- No new real-device evidence is present. `POST_1F795_DEVICE_VALIDATION` remains open for the current signed APK.
 
 ## Kototoro and extensions-lib parity audit for snapshot-fix head
 
@@ -259,7 +259,7 @@ The previous `POST_157D_DEVICE_VALIDATION` node is therefore superseded by the n
 
 ## Next decisive validation
 
-`POST_22032_DEVICE_VALIDATION` is the current project-level runtime validation node and supersedes `POST_9E5_DEVICE_VALIDATION`.
+`POST_1F795_DEVICE_VALIDATION` is the current project-level runtime validation node and supersedes `POST_22032_DEVICE_VALIDATION`.
 
 Install the current signed APK and exercise:
 
