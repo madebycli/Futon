@@ -23,10 +23,11 @@ Die bestehende Mihon-/Keiyoushi-Kompatibilität, der Shared Chapter Snapshot Sto
 
 - GrapheneOS ist mit dem aktuellen APK erfolgreich.
 - Eine andere temporär signierte App lässt sich auf dem Samsung Galaxy S25 Ultra installieren. Eine temporäre Signatur allein ist daher nicht als Root Cause bewiesen.
-- Die aktuelle Futon-APK zeigt auf dem Samsung eine Google-Sicherheitswarnung. Nach Auswahl von „Trotzdem installieren“ wird die Installation trotzdem abgebrochen.
+- Neue Device-Evidence vom 2026-08-28: Google Play Protect zeigt bei Futon „App wurde zum Schutz deines Geräts blockiert“ und „Play Protect kennt von diesem Entwickler noch keine anderen Apps. Die App könnte unsicher sein.“ Nach Auswahl von „Trotzdem installieren“ wird die Installation trotzdem nicht abgeschlossen.
+- Damit ist die sichtbare Ursache ein Play-Protect-Block für einen unbekannten bzw. noch nicht verifizierten Entwickler bei Sideloading. Das ist kein Beleg für eine defekte APK, einen falschen Package-Namen oder einen Mihon-Runtime-Fehler.
 - APK, Manifest, Paketname, `versionCode`, `minSdk`, `targetSdk`, ZIP-Alignment und v1/v2/v3-Signatur werden mit einer funktionierenden Vergleichs-App gegenübergestellt.
 - Der Samsung PackageInstaller- und Play-Protect-Fehler wird über Logcat und die exakte UI-Meldung isoliert.
-- Eine Änderung an Manifest, Paketname, Build-Typ oder Signaturformat erfolgt nur bei konkreter Evidenz.
+- Der aktuelle Beleg rechtfertigt keine Manifest-, Paketnamen-, Build-Typ- oder Signaturformatänderung. Die Lösung liegt bei stabiler Entwickleridentität und verifizierter bzw. Play-basierter Distribution. Ein Play-Protect-Bypass wird nicht in die App eingebaut.
 - Keine Exception wird verschluckt, um die Installation scheinbar erfolgreich wirken zu lassen.
 
 ### Projekt- und Sicherheits-Constraints
@@ -129,6 +130,12 @@ Der konkrete Samsung-Code- oder Build-Dateipfad ist noch nicht festgelegt. `UNKL
 13. Relevante Mihon-Tests, den bestehenden R8-/ABI-Gate und den finalen signierten Build ausführen.
 14. Kontextdateien und PR-Beschreibung mit realen Ergebnissen ergänzen. Device-Evidence bleibt offen, falls kein reproduzierbarer Samsung-Test mit finalem Release-Key vorliegt.
 
+## Neue Device-Evidence
+
+Am 2026-08-28 wurde ein Foto des Samsung-Dialogs dokumentiert. Der Dialog stammt von Google Play Protect und blockiert Futon ausdrücklich, weil der Entwickler noch keine anderen bekannten Apps hat. Die Aktion „Trotzdem installieren“ führt laut Gerät weiterhin nicht zu einer abgeschlossenen Installation.
+
+Die Evidence bestätigt den Sideload-/Entwickler-Reputationspfad als aktuelle Ursache des sichtbaren Blocks. Sie beweist nicht, dass ein stabiler Schlüssel allein genügt. Für eine normale Installation ohne diesen Block muss der finale Entwickler-Key anschließend bei der passenden Android-Developer-Verification bzw. Play-Distribution verwendet werden. Eine saubere Erstinstallation kann zusätzlich nötig sein, wenn zuvor ein mit anderem Schlüssel signiertes Futon installiert war.
+
 ## Skalierbarkeit, Sicherheit und Kosten
 
 - Ein stabiler Keystore ermöglicht signierte Updates ohne Änderungen an der Paketidentität.
@@ -141,9 +148,9 @@ Der konkrete Samsung-Code- oder Build-Dateipfad ist noch nicht festgelegt. `UNKL
 
 ## Offene Fragen / Unklarheiten
 
-- `UNKLAR:` Der exakte Wortlaut der Samsung-Warnung und der anschließende Installer-Fehlercode fehlen noch.
+- Der exakte Play-Protect-Wortlaut ist durch die neue Device-Evidence dokumentiert; ein nachgelagerter PackageInstaller-Fehlercode liegt weiterhin nicht vor.
 - `UNKLAR:` Die genaue Android- und One-UI-Version des Galaxy S25 Ultra ist noch nicht dokumentiert.
 - `UNKLAR:` Der Installationsweg ist noch nicht festgehalten, zum Beispiel Samsung Internet, Dateien-App, Chrome, ADB oder Artifact-ZIP.
 - `UNKLAR:` Es ist noch unbekannt, ob eine ältere Futon-Version mit anderer Signatur oder gleichem Paketnamen installiert war.
 - Die Ausführung unterstützt beides: lokale Erzeugung ohne Upload und einen ausdrücklich mit `--upload` bestätigten Upload über `gh`.
-- `UNKLAR:` Es ist noch nicht bewiesen, ob der stabile Release-Key den Samsung-Fehler behebt. Die Vergleichs-App zeigt, dass eine temporäre Signatur allein keine ausreichende Erklärung ist.
+- `UNKLAR:` Es ist noch nicht bewiesen, ob der stabile Release-Key allein den Samsung-Block beseitigt. Die Vergleichs-App zeigt, dass eine temporäre Signatur allein keine ausreichende Erklärung ist. Die zusätzliche Entwickler-Verifikation bzw. Play-Distribution ist noch nicht durchgeführt.

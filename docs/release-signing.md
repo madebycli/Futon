@@ -46,6 +46,8 @@ The values themselves must not be printed or copied into issues, logs, artifacts
 
 The current CI artifact is signed with a temporary key until the four repository secrets are set. A stable key prevents the normal signature change between builds, but it does not by itself prove that a Samsung Google security warning is fixed.
 
+The Samsung evidence currently available is a Google Play Protect dialog stating that Futon was blocked to protect the device because Play Protect does not yet know other apps from this developer. This is a sideload and developer-verification/reputation decision, not evidence of a Mihon runtime failure or a malformed APK. A normal user-facing installation path may require Android Developer Verification or Google Play distribution for the final developer identity. Do not add a Play Protect bypass to the app.
+
 If a temporary Futon APK is already installed, the first stable-key APK may require one clean uninstall and reinstall because Android rejects an update signed by a different key. Back up application data first. After that one transition, later stable-key builds can update normally.
 
 If Samsung still blocks the clean install, capture the exact warning and the Package Installer result. Useful diagnostics are:
