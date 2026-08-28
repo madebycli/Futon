@@ -1,6 +1,8 @@
 package io.github.landwarderer.futon.mihon
 
-import androidx.arch.core.executor.ArchTaskExecutor
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
@@ -33,15 +35,17 @@ private fun snapshotPath(chapter: SChapter?): String? {
 
 class MihonMangaRepositoryTest {
 
-    private lateinit var mockedArchTaskExecutor: MockedStatic<ArchTaskExecutor>
+    private lateinit var mockedProcessLifecycleOwner: MockedStatic<ProcessLifecycleOwner>
 
     @Before
     fun setUp() {
-        val archTaskExecutor = mock(ArchTaskExecutor::class.java)
-        Mockito.`when`(archTaskExecutor.isMainThread).thenReturn(true)
-        mockedArchTaskExecutor = Mockito.mockStatic(ArchTaskExecutor::class.java)
-        mockedArchTaskExecutor.`when`<ArchTaskExecutor> { ArchTaskExecutor.getInstance() }
-            .thenReturn(archTaskExecutor)
+        val lifecycle = mock(Lifecycle::class.java)
+        Mockito.`when`(lifecycle.currentState).thenReturn(Lifecycle.State.RESUMED)
+        val lifecycleOwner = mock(LifecycleOwner::class.java)
+        Mockito.`when`(lifecycleOwner.lifecycle).thenReturn(lifecycle)
+        mockedProcessLifecycleOwner = Mockito.mockStatic(ProcessLifecycleOwner::class.java)
+        mockedProcessLifecycleOwner.`when`<LifecycleOwner> { ProcessLifecycleOwner.get() }
+            .thenReturn(lifecycleOwner)
         Dispatchers.setMain(Dispatchers.Default)
         MihonChapterSnapshotStore.clearForTests()
     }
@@ -50,7 +54,7 @@ class MihonMangaRepositoryTest {
     fun tearDown() {
         MihonChapterSnapshotStore.clearForTests()
         Dispatchers.resetMain()
-        mockedArchTaskExecutor.close()
+        mockedProcessLifecycleOwner.close()
     }
 
     @Test
