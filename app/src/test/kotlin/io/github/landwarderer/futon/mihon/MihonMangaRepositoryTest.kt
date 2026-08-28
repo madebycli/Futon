@@ -56,7 +56,12 @@ class MihonMangaRepositoryTest {
             initialized = true
         }.toDomainContent(sourceWrapperA).toManga()
 
-        val details = repositoryA.getDetails(initialManga)
+        val details = try {
+            repositoryA.getDetails(initialManga)
+        } catch (error: Throwable) {
+            error.printStackTrace()
+            throw error
+        }
         val returnedChapter = requireNotNull(details.chapters).single()
 
         chapter.memo = buildJsonObject {
