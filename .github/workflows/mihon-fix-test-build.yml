@@ -51,6 +51,7 @@ jobs:
             --tests "io.github.landwarderer.futon.mihon.model.MihonDataConvertersTest" \
             --tests "io.github.landwarderer.futon.core.network.GitHubRawUrlCompatTest" \
             --stacktrace \
+            --info \
             --no-build-cache \
             --no-configuration-cache
 
