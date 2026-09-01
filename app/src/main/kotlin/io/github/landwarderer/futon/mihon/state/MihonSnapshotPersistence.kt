@@ -204,13 +204,16 @@ class MihonSnapshotPersistence {
             manga.artist = artist
             manga.author = author
             manga.description = description
+            // Set modern list metadata first because the host implementation mirrors it into the
+            // legacy genre string. Reapply the persisted legacy value afterwards so both ABI views
+            // survive a restart exactly as the extension supplied them.
+            manga.genres = genres.toList()
             manga.genre = genre
             manga.status = status
             manga.thumbnail_url = thumbnailUrl
             manga.update_strategy = runCatching { UpdateStrategy.valueOf(updateStrategy) }
                 .getOrDefault(UpdateStrategy.ALWAYS_UPDATE)
             manga.initialized = initialized
-            manga.genres = genres.toList()
             manga.altTitles = altTitles.toList()
             manga.banner = banner
             manga.contentRating = runCatching { SManga.ContentRating.valueOf(contentRating) }
@@ -313,11 +316,13 @@ class MihonSnapshotPersistence {
             chapter.url = url
             chapter.name = name
             chapter.date_upload = dateUpload
-            chapter.chapter_number = chapterNumber
-            chapter.scanlator = scanlator
+            // number may derive chapter_number and scanlators may derive scanlator. Restore the
+            // modern fields first, then reapply the independently persisted legacy values.
             chapter.number = number
+            chapter.chapter_number = chapterNumber
             chapter.volume = volume
             chapter.scanlators = scanlators.toList()
+            chapter.scanlator = scanlator
             chapter.note = note
             chapter.memo = JsonObject(memo.toMap())
             chapter.locked = locked
