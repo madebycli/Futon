@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file.
 
 The format is based on "Keep a Changelog" and follows semantic versioning where possible.
 
+## 9.8.3
+Date: 2026-09-01
+
+### Highlights
+- Reliable Mihon/Keiyoushi compatibility for the current 1.6 extension host API
+- Durable Mihon manga and chapter metadata across repository recreation and app restarts
+- Repository release-key signing for production GitHub releases
+
+### Fixes
+- Fixed Mihon default OkHttp interceptor ordering and host Brotli/Zstd runtime compatibility
+- Fixed modern and legacy `Source` / `HttpSource` ABI compatibility, including combined manga updates and current chapter/page APIs
+- Fixed dynamic serializer/default-method ABI failures by aligning the host baseline to Android API 26
+- Fixed chapter snapshot loss between repository instances and after process restart
+- Fixed restore ordering where modern model setters could overwrite independently persisted legacy values
+- Improved extension repository failure isolation, metadata handling, preference compatibility and fallback version parsing
+
+### Maintenance
+- Added focused Mihon regression coverage, optimized R8 runtime ABI verification and release signature verification
+- Hardened the tag release workflow to publish a named APK and SHA-256 checksum only after release gates pass
+
 ## 9.8.1
 Date: 2026-08-16
 
