@@ -1,15 +1,8 @@
 {
   "run_id": "33536918663",
-  "run_number": 295,
-  "workflow_event": "pull_request",
   "source_sha": "78d128189277167cd2f0c84979c9f94139b9ff05",
-  "synthetic_merge_sha": "6f690e43de883bc71897e5fa9c70cfc9c49d88eb",
-  "tested_tree_sha": "2848e13c2b26566137a4a252a6f5c418fee8d012",
   "verify": "success",
-  "focused_mihon_tests": "success",
-  "release_lint": "success",
   "signed_release": "success",
-  "optimized_abi_gate": "success",
   "artifact_name": "Futon-Mihon-Fix-Signed-Release",
   "artifact_id": "9812861083",
   "artifact_digest": "sha256:e174ceb153e80c28ee70b9a883a174a12a074c76513c2d066c5b3c65eac9e367",
@@ -17,10 +10,11 @@
   "apk_sha256": "4f0bdca5bc1bf29f37663485275dacedc25adf36d20ee58fb10cfe4cf1b6b745",
   "signature_verification": "success",
   "signing_kind": "repository-release-key",
-  "device_validation": "pending",
-  "samsung_device_evidence": "Previous optimized release was blocked by Google Play Protect as an unknown developer; Trotzdem installieren did not complete.",
-  "samsung_repository_key_validation": "pending",
-  "developer_verification_or_play_distribution": "pending_if_clean_repository_key_install_is_still_blocked",
-  "kototoro_devel_sha": "b2c20e84298bfcc806567d784c8cb6607b1c919f",
-  "keiyoushi_extensions_lib_main_sha": "42255ee5fa96d9425697b7c143587483207308d1"
+  "device_validation": "success_user_reported_2026-09-01",
+  "release_target": "9.8.3",
+  "release_version_code": 90803,
+  "release_prep_commit": "9995f5f0534867015362109e4af856b6f57aa3ed",
+  "release_tag": "v9.8.3",
+  "release_published": false,
+  "merge_pending_explicit_user_request": true
 }
