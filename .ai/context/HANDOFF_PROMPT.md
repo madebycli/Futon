@@ -2,14 +2,16 @@
 
 Du bist die nächste primäre Entwicklungs-KI für das Futon-Mihon/Keiyoushi-Kompatibilitätsprojekt.
 
-## Projekt und Sicherheitsregeln
+## Sicherheitsregeln
 
-- Futon-Fork: `madebycli/Futon`
+- Repository: `madebycli/Futon`
 - Arbeitsbranch: `fix/mihon-uncaught-exception-interceptor`
-- Draft-PR: #1 gegen `devel`
+- Base: `devel`
+- Draft-PR: #1
 - Niemals mergen oder `devel` direkt verändern, außer der Benutzer verlangt es ausdrücklich.
 - Keine Releases veröffentlichen, außer der Benutzer verlangt es ausdrücklich.
 - Keine Signing-Secrets, Keys, Passwörter oder Tokens ausgeben.
+- Nie behaupten, ein Device-Problem sei gelöst, solange dieses exakte APK nicht auf einem Gerät validiert wurde.
 
 ## Zwingender Start jeder Runde
 
@@ -24,205 +26,162 @@ Lies zuerst vollständig:
 Danach live neu holen:
 
 - Branch-Head von `fix/mihon-uncaught-exception-interceptor`
-- PR #1 Status/Head/Base
-- relevante GitHub-Actions-Runs
+- PR #1 Status, Head und Base
+- relevante GitHub Actions Runs
 - aktuellen `devel`-Head von `Kototoro-app/Kototoro`
-- bei Vertragsfragen aktuellen `keiyoushi/extensions-lib` Head
+- aktuellen `main`-Head von `keiyoushi/extensions-lib`, wenn ABI/Source-Vertrag relevant ist
 
-Gespeicherte SHAs niemals ungeprüft als aktuell annehmen.
+Gespeicherte SHAs niemals ungeprüft als aktuell annehmen. Kontextcommits mit `[skip ci]` können den Branch-Head nach dem letzten getesteten Source-Head weiterbewegen.
 
-## Verifizierter Stand, 2026-08-27
+## Aktueller verifizierter Source-Stand
 
-Tested PR head vor den nachfolgenden `[skip ci]` Kontextcommits:
+Finaler CI-verifizierter Source/Test-Head:
 
-`9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f`
+`78d128189277167cd2f0c84979c9f94139b9ff05`
 
-Letzter App-/Source-Code-Commit in diesem getesteten Tree:
+Tree:
 
-`85f19b491f2c4837e95c99e828fdb28f32d960c0`
+`2848e13c2b26566137a4a252a6f5c418fee8d012`
 
-PR #1 wurde live als offen, Draft, ungemergt gegen `devel` verifiziert. Base SHA war `05f11b2e6d46993677eec4e7eb66fde2c76e5a4b`.
+Synthetischer PR-Merge aus dem finalen Build:
 
-Der `pull_request` Workflow baute synthetischen Merge `fd2effcb2a90f2eae4047498f6734cebb9563682`. Dessen Tree `9324f0bf91078df59a7ccd922082b69806c37c10` ist identisch mit dem Tree des getesteten PR-Heads `9e5b792...`.
+`6f690e43de883bc71897e5fa9c70cfc9c49d88eb`
 
-#
-## Verifizierter Snapshot-Fix-Stand, 2026-08-28
+Der Merge hat exakt denselben Tree `2848e13c...`. Der Build entspricht deshalb dem Feature-Tree.
 
-Der Shared Chapter Snapshot Fix ist in `88006baa10d45dfb1a28c7721a74ce85876e0c45` enthalten. Der Source-/Test-Head ist `22032fac0dc413c2cfa3af5d9bbd196d82f7fc93`; der finale CI-verifizierte Feature-Head ist `1f795b437bbcacf89fee374d49417dbfad2b14c8`.
+Letzter Source-Fix:
 
-Die bestätigte Root Cause war ein repository-instanzlokaler Chapter-Snapshot-Cache. Der generische process-lokale Store liegt in `mihon/state/MihonChapterSnapshotStore.kt`, nutzt exakt `sourceId + chapterUrl`, speichert höchstens 500 Einträge, synchronisiert jeden Zugriff über einen privaten Lock und gibt defensive `SChapter`-Kopien auf Ein- und Ausgabe zurück. Die vollständige Kopierlogik liegt gemeinsam in `mihon/model/MihonModelSnapshots.kt`. `mangaSnapshots` bleibt repository-lokal.
+`809a8900f9f662b516b61eb7443cbf6c78021e6a`, `fix(mihon): preserve legacy snapshot fields on restore`.
 
-`MihonMangaRepositoryTest` beweist den öffentlichen Repository-Lebenszyklus Repository A -> Repository B, Source-Isolation bei identischer URL und defensive Kopien. Der Workflow filtert diese Klasse explizit.
+`78d128...` verschärft anschließend nur noch die Regression-Fixture, damit moderne und Legacy-Felder absichtlich verschieden bleiben.
 
-### CI und APK
+## Aktueller Fix: dauerhafte Mihon-Snapshots über App-Neustart
 
-- Workflow-Run: `33161055561` / Run `279`, vollständig erfolgreich.
-- Artifact: `Futon-Mihon-Fix-Signed-Release`, id `9682161782`.
-- APK: `Futon-9.8.1-mihon-fix-test-signed-release.apk`.
-- APK SHA-256: `2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28`.
-- Signing: `temporary-test-key`; CI-Signaturprüfung erfolgreich, aber nicht als Update über eine anders signierte Installation verwendbar.
-- Reale Gerätevalidierung des aktuellen APKs ist noch ausstehend: `POST_1F795_DEVICE_VALIDATION`.
+Der frühere shared chapter snapshot fix löste Repository A -> Repository B innerhalb eines Prozesses. Der aktuelle Fix erweitert das auf App-Prozess-Neustart und DB-Restore.
 
-### Feste Upstream-Sync-Prozedur
+Wichtige Komponenten:
 
-Bei jedem späteren Kototoro/Mihon/Keiyoushi-Update exakt diese Reihenfolge einhalten:
+- `mihon/state/MihonSnapshotPersistence.kt`
+- `core/parser/AwaitingMihonMangaRepository.kt`
+- `core/parser/MangaRepository.kt`
+- `mihon/MihonExtensionManager.kt`
+- `mihon/extensions/runtime/ExternalExtensionManagerFacade.kt`
+- `mihon/extensions/runtime/ExternalExtensionManagerRuntime.kt`
+- `mihon/MihonMangaRepository.kt`
+- `mihon/state/MihonSnapshotPersistenceTest.kt`
 
-1. Futon Feature-Head live lesen.
-2. Futon `devel` live lesen.
-3. Kototoro `devel` live lesen.
-4. `keiyoushi/extensions-lib/main` live lesen.
-5. Nur die entsprechenden Mihon/Tachiyomi-Grenzen vergleichen.
-6. API-Additions, API-Removals und Verhaltensänderungen getrennt erfassen.
-7. Den kleinsten semantisch notwendigen Delta portieren.
-8. Keine komplette Upstream-Datei blind ersetzen.
-9. Unit-/Contract-Tests ausführen.
-10. Den optimierten R8-APK prüfen.
-11. Die Kontextdateien mit den tatsächlich geprüften SHAs aktualisieren.
+Persistenzregeln:
 
-Die logischen Futon-Grenzen bleiben `mihon/compat/**` für Host-ABI/Request Context/dynamische Extension-Kompatibilität, `mihon/model/**` für Konvertierung/Snapshots, `mihon/state/**` für process-lokalen Integrationszustand, die bestehenden Network-/Cloudflare-Bereiche sowie die bestehenden Extension Loader-/Manager-Bereiche. Kein neues Gradle-Modul anlegen.
+- Datei `mihon-model-snapshots-v1.json` unter `noBackupFilesDir`
+- Schema 1
+- maximal 500 Manga-Snapshots und 1000 Chapter-Snapshots
+- Key `sourceId + exact URL`
+- keine URL-Normalisierung
+- keine Extension-Implementierungsklassen serialisieren, nur Futon-hosted `SManga`/`SChapter` Werte
+- synchronisiert
+- temp write + `fsync` + atomic replace wenn verfügbar
+- korrupte Datei darf Startup nicht brechen
+- unbekannte Schema-Version wird ignoriert
 
-## Aktuelles CI
+`AwaitingMihonMangaRepository` wird nur für Mihon-Quellen verwendet, die aus Futons DB wiederhergestellt wurden, bevor der initiale Extension-Scan fertig ist. `awaitInitialLoad()` wird im Runtime-Pfad auch bei leeren oder fehlerhaften Scan-Ergebnissen im `finally` freigegeben.
 
-Für tested head `9e5b792...`:
+### Wichtigster neuer Testfund
 
-- Debug Build: run `33012858726`, success
-- Debug artifact id: `9623782588`
-- Signed Mihon Test Build: run `33012858721`, success
-- fokussierte Mihon Regressionen: success
-- Release-Lint: success
-- optimierter R8 Release-Build: success
-- APK-Signaturprüfung: success
-- signed artifact id: `9623914916`
-- signed artifact ZIP SHA-256: `fb85ca060bc7cd7c94c2a65fed7601ade155c109dc5b7482baba218b89876438`
-- signed APK SHA-256: `bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f`
-- APK-Hash wurde gegen die im Artifact enthaltene `.sha256` und lokalen `sha256sum` geprüft
-- Signing: `temporary-test-key`
-- App-Version: `9.8.1-mihon-fix-test`, versionCode `90803`
+Der neue Restart-Test fand einen echten Restore-Fidelity-Bug:
 
-Wichtig: Der temporäre Test-Key kann keine Installation überschreiben, die mit einem anderen Key signiert wurde. Bei Installationskonflikt kann eine Deinstallation der alten Testinstallation nötig sein.
+- `genres` kann `genre` überschreiben
+- `number` kann `chapter_number` ableiten
+- `scanlators` kann `scanlator` überschreiben
 
-Direkte DEX-Prüfung des optimierten APKs bestätigte den aktuellen Workflow-Gate, unter anderem Zstd/Brotli, `PreferenceScreen`, `ConfigurableSource`, `Source`, `RefreshContext`, `HttpSource`, `SManga`, `SChapter`, `Page`, `getMangaUpdate`, `fetchRelatedMangaList`, Chapter/Page APIs, `CaptchaAutoResolveCoordinator` und `TachiyomiApkClassLoaderPolicy`.
+Commit `809a890...` stellt deshalb erst die modernen Werte her und setzt danach die separat persistierten Legacy-Werte erneut. Dadurch bleiben beide ABI-Sichten unabhängig korrekt.
 
-`.ci/mihon-fix-latest.json` zeigt auf run `33012858721` / source `9e5b792...` / success.
+## Finales CI
 
-## Aktuelle Referenzen
+### Mihon Fix Signed Test Build
 
-Kototoro:
+- Run id: `33536918663`
+- Run number: `295`
+- Ergebnis: success
+- fokussierte Mihon Tests: 49/49 success
+- Release Lint: success
+- optimierter R8 Release Build: success
+- optimierter Mihon ABI Gate: success
+- APK Signaturprüfung: success
+- Artifact Upload: success
 
-- Repo: `Kototoro-app/Kototoro`
-- Branch: `devel`
-- zuletzt live verifiziert: `19cbb0790744eb28e5accead7e9514d976b02f3d`
-- vorheriger Audit-SHA: `f4f37a5b7290da05c10b9325912f2a37ebeff0f9`
-- vorheriger Kontext-SHA: `dec0ef781644245f6937dc1cafc8ca84963fe08e`
-- zwischen `f4f37a...` und `19cbb0...` liegen 11 Commits, aber keine Änderungen an den hier verwendeten Mihon/Tachiyomi-Runtime-, Source-ABI-, NetworkHelper-, Cloudflare-, WebView-, ClassLoader- oder Download-Slowdown-Referenzdateien
+Artifact:
 
-Wichtige aktuelle Kototoro-Referenzdateien:
+- `Futon-Mihon-Fix-Signed-Release`
+- Artifact id `9812861083`
+- Artifact digest `sha256:e174ceb153e80c28ee70b9a883a174a12a074c76513c2d066c5b3c65eac9e367`
+- APK `Futon-9.8.1-mihon-fix-test-signed-release.apk`
+- APK SHA-256 `4f0bdca5bc1bf29f37663485275dacedc25adf36d20ee58fb10cfe4cf1b6b745`
+- Artifact `.sha256` und lokal berechneter APK-Hash stimmen exakt überein
+- `BUILD-INFO.txt`: `Signing: repository-release-key`
 
-- `app/src/main/kotlin/eu/kanade/tachiyomi/source/Source.kt`
-- `app/src/main/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/mihon/compat/KotoNetworkHelper.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/core/exceptions/resolve/CaptchaHandler.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/core/exceptions/resolve/CaptchaAutoResolveCoordinator.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/core/exceptions/resolve/CloudFlareSingleFlight.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/core/network/webview/WebViewExecutor.kt`
-- `app/src/main/kotlin/org/skepsun/kototoro/core/prefs/SourceSettings.kt`
+Wichtig: Der finale optimierte Build nutzt jetzt den Repository Release Key. Der frühere Status `temporary-test-key` ist für dieses finale APK superseded. Niemals Secret-Material ausgeben.
 
-Keiyoushi extensions-lib:
+### Debug Build
+
+- Run id `33536918698`
+- Run number `148`
+- Ergebnis success
+- Debug APK Build und Upload success
+
+## Aktuelle Upstream-Referenzen, live geprüft 2026-09-01
+
+### Kototoro
+
+- `Kototoro-app/Kototoro`
+- Branch `devel`
+- aktueller Head `b2c20e84298bfcc806567d784c8cb6607b1c919f`
+- vorher gespeichert `19cbb0790744eb28e5accead7e9514d976b02f3d`
+- Delta: 32 Commits
+- die exakten Pfade `TachiyomiApkClassLoaderPolicy.kt` und `KotoNetworkHelper.kt` erscheinen nicht im Delta
+- der restliche Delta enthält unter anderem Favourites-, Wizard- und Tsundoku-Arbeit, also bei einem neuen Fehler immer den tatsächlich betroffenen exakten Pfad prüfen
+
+### Keiyoushi extensions-lib / TachiyomiX 1.6
 
 - `keiyoushi/extensions-lib`
-- `main`
-- zuletzt live `18a8e26be2320b48bdaa11840170479b62989e23`
+- Branch `main`
+- aktueller Head `42255ee5fa96d9425697b7c143587483207308d1`
+- vorher `18a8e26be2320b48bdaa11840170479b62989e23`
+- 1.6 wurde in `main` gemergt und ABI-Tracking hinzugefügt
 
-## Aktuell implementierte Kompatibilität
+Der aktuelle 1.6 `Source`/`HttpSource` Vertrag wurde gegen Futon `78d128...` geprüft. Es wurde kein fehlender aktueller `Source`- oder `HttpSource`-ABI-Einstieg gefunden. Futon hostet zusätzlich Legacy/Fork-Kompatibilität. Das ist Source-Level-Evidenz plus grüner APK-ABI-Gate, kein Ersatz für Device-Tests.
 
-- Mihon Default-Client-Interceptor-Reihenfolge und vollständige Host-OkHttp-Konfiguration.
-- Moderne und Legacy Brotli/Zstd-Kompatibilität.
-- `HttpSource` modern suspend plus Legacy-Rx-`fetch*` Fallback.
-- `RefreshContext`, Request-/Source-Context und aktuelle Source-Request-ABI.
-- `SManga.memo`, `SMangaUpdate`, `Source.getMangaUpdate(...)`, Legacy Details/Chapters und kombinierter Repository-Pfad.
-- `minSdk = 26` gegen den dynamischen Serializer/default-method ABI-Konflikt.
-- Kototoro-artige `TachiyomiApkClassLoaderPolicy`, Parent-owned Host-ABI, child-first `$-CC` / `$DefaultImpls`.
-- Source-Browser-Origin, gemeinsamer Mihon Preference-Namespace, protobuf extension-lib Version, isolierte Extension-Repo-Fehler und robustes Fallback-Version-Parsing.
-- Historischer Futon Cloudflare WebView-Solve mit Clearance-Erkennung und Originalrequest-Retry.
+## Historische Root Causes, nicht neu entdecken ohne aktuelle Evidence
 
-Der alte Kontext, der `157d94e...` als letzten Source-Stand behandelte, ist superseded. Die zusätzlichen App-Fixes bis `85f19b...` und Tests bis `9e5b792...` sind bereits Teil des aktuellen getesteten Trees.
-
-## Historische Root Causes
-
-Nicht als neue Bugs zählen, solange ein aktuelles Gerätelog keinen Rückfall beweist:
-
-- fehlender `UncaughtExceptionInterceptor` im Default-Client, resolved
+- fehlender `UncaughtExceptionInterceptor` im Default Client, resolved
 - fehlender host-sichtbarer Brotli Runtime-Typ, resolved
-- `GeneratedSerializer.typeParametersSerializers()` `AbstractMethodError` durch alte minSdk/interface-desugaring ABI, resolved durch `minSdk = 26`
-- obsolete Details/Chapter Repository-Route, resolved
+- `GeneratedSerializer.typeParametersSerializers()` `AbstractMethodError`, resolved durch `minSdk = 26`
+- obsolete Details/Chapter Route, resolved
 - `SManga.getMemo` `NoSuchMethodError`, resolved
 - `Source.getMangaUpdate` `NoSuchMethodError`, resolved
-- Mihon 1.6 MangaDex `0 manga` Continuity-Fall, resolved/superseded durch aktuellen kombinierten Repository-Pfad
-- historischer Comix Cloudflare-Solve mit geändertem `cf_clearance` und HTTP 200 nach Retry, proven historical
+- MangaDex 1.6 Continuity `0 manga`, resolved/superseded
+- repository-instanzlokaler Chapter Snapshot Verlust, resolved
+- Restore Setter Fidelity, resolved durch `809a890...`
 
-Alle Details und frühere CI-Regressionen stehen in `STATE.md` und `graph.yaml`.
+Historischer Comix-Test bewies, dass Futons WebView Cloudflare Flow `cf_clearance` ändern und den Originalrequest erfolgreich bis HTTP 200 wiederholen konnte. Das beweist nicht jeden aktuellen Cloudflare-Fall.
 
-## Offene, aber noch unbewiesene Kototoro-Paritätsdifferenz
+## Offene Kototoro-Paritätsdifferenz
 
-Aktuelles Kototoro am live geprüften Head `19cbb0790744eb28e5accead7e9514d976b02f3d` hat eine neuere Cloudflare/Captcha-Orchestrierung als Futon:
+Kototoro hat weiterhin eine reichere Cloudflare/Captcha-Orchestrierung mit SingleFlight, Resolver State, Auto/Manual Strategy, Recent-Success-Verhalten, explizitem Manual Fallback und per-Source Auto-Captcha-Steuerung.
 
-- `CloudFlareSingleFlight`
-- Resolver-State
-- Auto/Manual Strategy
-- Recent-Success Retry Window
-- expliziter manueller Fallback
-- Originalrequest Probe
-- Foreground-aware Resolver
-- per-Source Auto-Captcha Opt-out
-- neueres `KotoNetworkHelper` Cloudflare Strategy/Solve Coordination
+Das ist kein bestätigter aktueller Root Cause. Nur portieren, wenn aktuelle Device-Evidence des finalen APKs den Pfad als Fehler zeigt und der aktuelle Kototoro-Pfad den gleichen Fall generisch löst.
 
-Futon hat eine ältere, einfachere Portierung mit per-Host Mutex/Cooldown, WebView Solve, Originalrequest Probe und Retry.
+## Nächster entscheidender Schritt
 
-Das ist aktuell **kein bestätigter Root Cause**. Ohne aktuellen Gerätetest des `9e5b792...` Trees nicht allein wegen neuerer Kototoro-Architektur portieren. Wenn ein aktuelles Gerätelog genau diesen Pfad als Fehler zeigt und Kototoro ihn funktionierend löst, die relevante aktuelle Kototoro-Orchestrierung code-nah mit Attribution und Tests portieren statt einen weiteren Futon-Workaround zu erfinden.
+Aktueller offener Runtime-Knoten:
 
-## Höchste Priorität: echter Gerätetest des aktuellen APKs
+`POST_78D_REPOSITORY_KEY_DEVICE_VALIDATION`
 
-Es gibt im derzeitigen Kontext noch keinen aufgezeichneten realen Device-Test des getesteten `9e5b792...` Trees / `85f19b...` App-Source-Stands. CI/DEX ist grün, aber Device-Evidence hat Vorrang.
+Das exakte finale APK mit Repository Release Key auf dem Samsung Galaxy S25 Ultra testen.
 
-Aktueller offener Runtime-Knoten: `POST_9E5_DEVICE_VALIDATION`.
+1. Wenn eine anders signierte alte Futon-Testinstallation ein Update verhindert, diese einmal deinstallieren und sauber installieren.
+2. Exakt dokumentieren, ob Play Protect das Repository-Key-APK weiterhin blockiert.
+3. Wenn ein Clean Install weiter blockiert wird, genaue Play-Protect-/Installer-Meldung oder Code erfassen. Dann können Android Developer Verification oder Play Distribution der nächste Distribution-Schritt sein.
+4. Nach erfolgreicher Installation Comix, MangaDot.net, Manga Ball, Weeb Central und MangaRead.org über Browse/Search/Details/Chapters/Pages testen.
+5. Zusätzlich einen echten App-Neustart testen und zuvor geladene Mihon-Manga/Chapter erneut öffnen, damit die neue Persistenz auf Hardware validiert wird.
 
-Teste mindestens Comix, MangaDot.net, Manga Ball, Weeb Central und MangaRead.org jeweils soweit möglich über Browse/Popular, Search, Details, Chapters und Pages/Images.
-
-Für jeden Fehler:
-
-1. erste echte Exception im relevanten Source-Pfad isolieren
-2. wiederholte rote Zeilen nach einer eindeutigen Root Cause zusammenfassen
-3. Futon-Pfad bestimmen
-4. aktuellen Kototoro-Pfad am live SHA bestimmen
-5. aktuellen Keiyoushi/Mihon-Vertrag prüfen
-6. Kototoro-Lösung bevorzugt code-nah portieren, falls sie den Fall generisch löst
-7. Regressionstest hinzufügen
-8. fokussierte Tests + Debug APK + Signed APK validieren
-9. bei Runtime/ClassLoader-Problemen APK/DEX prüfen
-10. `.ai/context/STATE.md` und `.ai/context/graph.yaml` aktualisieren
-11. dem Benutzer wieder eine direkt installierbare APK geben
-
-## Evidenzpriorität
-
-1. neuestes reales Gerätelog / reproduzierbares Device-Verhalten
-2. aktueller Kototoro-/Keiyoushi-/Mihon-Code am exakten SHA
-3. Regressionstests + vollständige APK Builds + DEX-Prüfung
-4. Dokumentation
-5. Annahmen
-
-Ein grüner Test darf niemals eine reale Device-Exception wegbeweisen.
-
-
-## Finaler Upstream-Refresh
-
-Der live geprüfte aktuelle Kototoro-Head ist `19cbb0790744eb28e5accead7e9514d976b02f3d`. Der Delta seit `f4f37a5b7290da05c10b9325912f2a37ebeff0f9` umfasst 11 Commits, ohne Änderungen in den relevanten Mihon/Tachiyomi-Referenzbereichen. Deshalb wurde in diesem Refresh keine weitere Funktion portiert.
-
-
-## Current Samsung Play Protect and release-signing status
-
-- The current branch source/documentation head is `33aa754a6e3c0e17030ba92fdcd7d03976200ea1`.
-- The NixOS key setup is in `scripts/create-release-signing-key.sh`; use `--upload` only after creating and backing up the key locally. The workflow already expects `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, and `KEY_PASSWORD`.
-- Samsung Galaxy S25 Ultra evidence is a Google Play Protect block for an unknown developer. The exact visible text says the developer has no other known apps, and `Trotzdem installieren` still does not finish. Do not add an app-side bypass or claim that a stable key alone resolves this.
-- The first stable-key Samsung test remains pending. If an older temporary Futon is installed, uninstall/reinstall once because the signing identity changes. If a clean install is still blocked, use Android Developer Verification or Play distribution for the final developer identity and capture the next installer code.
-- Push run `33178026349` and PR run `33178030385` both passed all required Mihon, R8, ABI, signature, and artifact checks. The artifact uses `temporary-test-key` until the Master uploads the stable key.
+Bei Fehlern immer die erste echte Exception isolieren und wiederholte Logzeilen nach Root Cause gruppieren. Device-Evidence hat Vorrang vor CI.
