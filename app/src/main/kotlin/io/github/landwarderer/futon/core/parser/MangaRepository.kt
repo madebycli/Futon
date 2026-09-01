@@ -18,6 +18,7 @@ import io.github.landwarderer.futon.mihon.MihonExtensionManager
 import io.github.landwarderer.futon.mihon.MihonMangaRepository
 import io.github.landwarderer.futon.mihon.fetchNativePageResponse
 import io.github.landwarderer.futon.mihon.model.MihonMangaSource
+import io.github.landwarderer.futon.mihon.state.MihonSnapshotPersistence
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -98,6 +99,7 @@ interface MangaRepository {
         private val contentCache: MemoryContentCache,
         private val mirrorSwitcher: MirrorSwitcher,
         private val mihonExtensionManager: MihonExtensionManager,
+        private val mihonSnapshotPersistence: MihonSnapshotPersistence,
     ) {
         private val cache = ArrayMap<MangaSource, WeakReference<MangaRepository>>()
 
@@ -146,13 +148,25 @@ interface MangaRepository {
             is MihonMangaSource -> MihonMangaRepository(
                 source = source,
                 cache = contentCache,
+                snapshotPersistence = mihonSnapshotPersistence,
             )
 
             else -> {
-                if (source.name.startsWith("mihon:") || source.name.startsWith("MIHON_")) {
-                    mihonExtensionManager.getMihonMangaSourceByName(source.name)?.let {
-                        return MihonMangaRepository(source = it, cache = contentCache)
+                if (source.name.startsWith("mihon:", ignoreCase = true) || source.name.startsWith("MIHON_")) {
+                    val loadedSource = mihonExtensionManager.getMihonMangaSourceByName(source.name)
+                    if (loadedSource != null) {
+                        return MihonMangaRepository(
+                            source = loadedSource,
+                            cache = contentCache,
+                            snapshotPersistence = mihonSnapshotPersistence,
+                        )
                     }
+                    return AwaitingMihonMangaRepository(
+                        source = source,
+                        extensionManager = mihonExtensionManager,
+                        cache = contentCache,
+                        snapshotPersistence = mihonSnapshotPersistence,
+                    )
                 }
                 null
             }

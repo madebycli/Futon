@@ -84,6 +84,10 @@ class ExternalExtensionManagerFacade<ResultT, SuccessT, ErrorT, SourceT, Catalog
 		)
 	}
 
+	suspend fun awaitInitialLoad() {
+		runtime.awaitInitialLoad()
+	}
+
 	fun getCatalogueSources(): List<CatalogueT> {
 		return installedExtensions.value.flatMap(successCatalogueSources)
 	}

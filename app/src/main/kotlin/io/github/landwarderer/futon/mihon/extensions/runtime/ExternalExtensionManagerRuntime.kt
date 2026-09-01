@@ -1,6 +1,7 @@
 package io.github.landwarderer.futon.mihon.extensions.runtime
 
 import android.content.Context
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ class ExternalExtensionManagerRuntime<ResultT, SuccessT, ErrorT, SourceT, Wrappe
 
 	private val sourceCache = mutableMapOf<Long, SourceT>()
 	private val wrappedSourceCache = mutableMapOf<Long, WrappedSourceT>()
+	private val initialLoadComplete = CompletableDeferred<Unit>()
 
 	@Volatile
 	private var isPackageObserverRegistered = false
@@ -53,7 +55,12 @@ class ExternalExtensionManagerRuntime<ResultT, SuccessT, ErrorT, SourceT, Wrappe
 			_wrappedSources.value = processed.wrappedSourceById.values.toList()
 		} finally {
 			_isLoading.value = false
+			initialLoadComplete.complete(Unit)
 		}
+	}
+
+	suspend fun awaitInitialLoad() {
+		initialLoadComplete.await()
 	}
 
 	fun getSourceById(sourceId: Long): SourceT? = sourceCache[sourceId]

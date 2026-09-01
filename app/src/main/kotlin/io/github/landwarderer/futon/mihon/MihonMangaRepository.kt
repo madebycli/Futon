@@ -14,6 +14,7 @@ import io.github.landwarderer.futon.core.parser.CachingMangaRepository
 import io.github.landwarderer.futon.mihon.compat.MihonRequestContext
 import io.github.landwarderer.futon.mihon.model.snapshot
 import io.github.landwarderer.futon.mihon.state.MihonChapterSnapshotStore
+import io.github.landwarderer.futon.mihon.state.MihonSnapshotPersistence
 import io.github.landwarderer.futon.mihon.model.MihonMangaSource
 import io.github.landwarderer.futon.mihon.model.asContentPage
 import io.github.landwarderer.futon.mihon.model.getPublicContentUrl
@@ -50,6 +51,7 @@ import org.koitharu.kotatsu.parsers.model.SortOrder as ContentSortOrder
 class MihonMangaRepository(
     override val source: MihonMangaSource,
     cache: MemoryContentCache,
+    private val snapshotPersistence: MihonSnapshotPersistence? = null,
 ) : CachingMangaRepository(cache) {
 
     companion object {
@@ -114,6 +116,7 @@ class MihonMangaRepository(
             }
         }
 
+        snapshotPersistence?.putMangas(source.sourceId, mangasPage.mangas)
         mangasPage.mangas.map { sContent ->
             rememberMihonManga(sContent)
             sContent.toDomainContent(
@@ -125,9 +128,11 @@ class MihonMangaRepository(
 
     override suspend fun getDetailsImpl(manga: Manga): Manga = withContext(Dispatchers.IO) {
         val sContent = mangaSnapshots.get(manga.url)?.snapshot()
+            ?: snapshotPersistence?.getManga(source.sourceId, manga.url)?.also(::rememberMihonManga)
             ?: manga.toContent(source).toMihonManga()
         val existingChapters = manga.chapters.orEmpty().map { chapter ->
             MihonChapterSnapshotStore.get(source.sourceId, chapter.url)
+                ?: snapshotPersistence?.getChapter(source.sourceId, chapter.url)?.also(::rememberMihonChapter)
                 ?: chapter.toContentChapter(source).toMihonChapter()
         }
 
@@ -158,6 +163,7 @@ class MihonMangaRepository(
             }
         }
 
+        snapshotPersistence?.putChapters(source.sourceId, update.chapters)
         val details = update.manga
         val chapters = update.chapters.asReversed()
             .mapIndexed { index, sChapter ->
@@ -166,7 +172,7 @@ class MihonMangaRepository(
                 } else {
                     (index + 1).toFloat()
                 }
-                sChapter.toContentChapter(source, fallbackNumber).also { chapter ->
+                sChapter.toContentChapter(source, fallbackNumber).also {
                     rememberMihonChapter(sChapter)
                 }
             }
@@ -174,6 +180,7 @@ class MihonMangaRepository(
 
         details.applyDetailFallbacks(sContent)
         rememberMihonManga(details)
+        snapshotPersistence?.putManga(source.sourceId, details)
 
         details.toDomainContent(
             source = source,
@@ -184,6 +191,7 @@ class MihonMangaRepository(
 
     override suspend fun getPagesImpl(chapter: MangaChapter): List<MangaPage> = withContext(Dispatchers.IO) {
         val sChapter = MihonChapterSnapshotStore.get(source.sourceId, chapter.url)
+            ?: snapshotPersistence?.getChapter(source.sourceId, chapter.url)?.also(::rememberMihonChapter)
             ?: chapter.toContentChapter(source).toMihonChapter()
         val pages = rethrowMihonWrappedExceptions {
             withMihonSourceContext {
@@ -320,12 +328,14 @@ class MihonMangaRepository(
     override suspend fun getRelatedMangaImpl(seed: Manga): List<Manga> {
         if (mihonSource.supportsRelatedMangas && !mihonSource.disableRelatedMangas) {
             val manga = mangaSnapshots.get(seed.url)?.snapshot()
+                ?: snapshotPersistence?.getManga(source.sourceId, seed.url)?.also(::rememberMihonManga)
                 ?: seed.toContent(source).toMihonManga()
             val related = rethrowMihonWrappedExceptions {
                 withMihonSourceContext {
                     mihonSource.fetchRelatedMangaList(manga)
                 }
             }
+            snapshotPersistence?.putMangas(source.sourceId, related)
             return related.map { relatedManga ->
                 rememberMihonManga(relatedManga)
                 relatedManga.toDomainContent(
