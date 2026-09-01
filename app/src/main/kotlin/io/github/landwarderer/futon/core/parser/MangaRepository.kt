@@ -154,21 +154,21 @@ interface MangaRepository {
             else -> {
                 if (source.name.startsWith("mihon:", ignoreCase = true) || source.name.startsWith("MIHON_")) {
                     val loadedSource = mihonExtensionManager.getMihonMangaSourceByName(source.name)
-                    if (loadedSource != null) {
-                        return MihonMangaRepository(
-                            source = loadedSource,
+                    loadedSource?.let {
+                        MihonMangaRepository(
+                            source = it,
                             cache = contentCache,
                             snapshotPersistence = mihonSnapshotPersistence,
                         )
-                    }
-                    return AwaitingMihonMangaRepository(
+                    } ?: AwaitingMihonMangaRepository(
                         source = source,
                         extensionManager = mihonExtensionManager,
                         cache = contentCache,
                         snapshotPersistence = mihonSnapshotPersistence,
                     )
+                } else {
+                    null
                 }
-                null
             }
         }
     }
