@@ -1,6 +1,6 @@
 schema_version: 1
 project: Futon-Mihon-Compatibility
-updated_at: 2026-08-28
+updated_at: 2026-09-01
 update_policy:
   mandatory: true
   rule: "After every meaningful device result, upstream comparison, code fix, regression test, CI result, or reference-SHA change, update this graph and STATE.md."
@@ -20,25 +20,24 @@ nodes:
   FUTON_FIX_BRANCH:
     type: branch
     value: fix/mihon-uncaught-exception-interceptor
-    tested_pr_head_before_context_refresh: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
-    latest_app_source_head_in_tested_tree: 85f19b491f2c4837e95c99e828fdb28f32d960c0
-    tested_tree_sha: 9324f0bf91078df59a7ccd922082b69806c37c10
-    latest_snapshot_fix_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
-    final_ci_verified_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
-    shared_chapter_snapshot_commit: 88006baa10d45dfb1a28c7721a74ce85876e0c45
-    note: "Context/status commits use [skip ci] and may advance branch head without changing the tested app tree."
+    base: devel
+    tested_source_head: 78d128189277167cd2f0c84979c9f94139b9ff05
+    tested_tree_sha: 2848e13c2b26566137a4a252a6f5c418fee8d012
+    last_source_fix: 809a8900f9f662b516b61eb7443cbf6c78021e6a
+    context_commits_may_advance_head: true
 
   PR_1:
     type: pull_request
-    value: 1
+    number: 1
     base: devel
-    base_sha: 05f11b2e6d46993677eec4e7eb66fde2c76e5a4b
-    tested_head_before_context_refresh: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
-    draft: true
+    base_sha_at_final_test: 05f11b2e6d46993677eec4e7eb66fde2c76e5a4b
+    synthetic_merge_sha: 6f690e43de883bc71897e5fa9c70cfc9c49d88eb
+    synthetic_merge_tree_sha: 2848e13c2b26566137a4a252a6f5c418fee8d012
+    feature_tree_matches_merge_tree: true
     state: open
+    draft: true
     merged: false
     merge_allowed_without_user: false
-    live_verified_at: 2026-08-28
 
   APP_VERSION:
     type: version
@@ -46,292 +45,192 @@ nodes:
     version_code: 90803
     min_sdk: 26
 
-  FINAL_CI_157D:
-    type: evidence
-    status: historical_superseded_by_newer_tested_tree
-    source_sha: 157d94e249e2cc06b86b2088f9616802575efa5f
-    debug_run: 32968537762
-    debug_build: success
-    debug_artifact_id: 9606868918
-    dedicated_run: 32968537828
-    focused_verify: success
+  FINAL_CI_78D:
+    type: ci_evidence
+    status: success
+    tested_source_head: 78d128189277167cd2f0c84979c9f94139b9ff05
+    tested_tree_sha: 2848e13c2b26566137a4a252a6f5c418fee8d012
+    synthetic_merge_sha: 6f690e43de883bc71897e5fa9c70cfc9c49d88eb
+    workflow: Mihon Fix Signed Test Build
+    run_id: 33536918663
+    run_number: 295
+    focused_mihon_tests: success_49_of_49
     release_lint: success
-    signed_release: success
-    signature_verify: success
-    signed_artifact_id: 9607335889
-    signed_apk_sha256: d4de82bd6bb22d1bafb6f3860cf0e9ed6566aa2af0ad2b65a69d813172c038aa
-    artifact_zip_sha256: 0e7b509ca3bf04d62ffa274e0d47b3427f7f1478c6110a4994184cf25fcfc7fa
-    signing_kind: temporary-test-key
-    live_verified_at: 2026-08-26
+    optimized_r8_release: success
+    optimized_abi_gate: success
+    signature_verification: success
+    artifact_upload: success
+    artifact_name: Futon-Mihon-Fix-Signed-Release
+    artifact_id: 9812861083
+    artifact_digest: sha256:e174ceb153e80c28ee70b9a883a174a12a074c76513c2d066c5b3c65eac9e367
+    apk_filename: Futon-9.8.1-mihon-fix-test-signed-release.apk
+    apk_sha256: 4f0bdca5bc1bf29f37663485275dacedc25adf36d20ee58fb10cfe4cf1b6b745
+    bundled_checksum_matches_local: true
+    signing_kind: repository-release-key
 
-  CURRENT_CI_9E5:
-    type: evidence
-    tested_pr_head: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
-    latest_app_source_head: 85f19b491f2c4837e95c99e828fdb28f32d960c0
-    synthetic_pr_merge_sha: fd2effcb2a90f2eae4047498f6734cebb9563682
-    tested_tree_sha: 9324f0bf91078df59a7ccd922082b69806c37c10
-    debug_run: 33012858726
-    debug_build: success
-    debug_artifact_name: Futon-Mihon-Fix-Debug-Native
-    debug_artifact_id: 9623782588
-    dedicated_run: 33012858721
-    focused_verify: success
-    release_lint: success
-    signed_release: success
-    signature_verify: success
-    signed_artifact_name: Futon-Mihon-Fix-Signed-Release
-    signed_artifact_id: 9623914916
-    signed_apk_sha256: bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f
-    artifact_zip_sha256: fb85ca060bc7cd7c94c2a65fed7601ade155c109dc5b7482baba218b89876438
-    signing_kind: temporary-test-key
-    status: current_green_ci_for_tested_tree
-    live_verified_at: 2026-08-27
-
-  FINAL_APK_DEX_INSPECTION_157D:
-    type: evidence
-    source_sha: 157d94e249e2cc06b86b2088f9616802575efa5f
-    artifact_id: 9607335889
-    status: historical_passed
-    checked_symbols:
-      - okhttp3/brotli/BrotliInterceptor
-      - okhttp3/zstd/Zstd
-      - eu/kanade/tachiyomi/source/model/SMangaUpdate
-      - getMangaUpdate
-      - io/github/landwarderer/futon/mihon/compat/MihonNetworkHelper
-      - eu/kanade/tachiyomi/source/online/HttpSource
-      - cloudflareClient
-      - overridesFetchWithoutRequestHelper
-      - newCachelessCallWithProgress
-      - typeParametersSerializers
-      - TachiyomiApkClassLoaderPolicy
-
-  CURRENT_APK_DEX_INSPECTION_9E5:
-    type: evidence
-    tested_pr_head: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
-    artifact_id: 9623914916
-    signed_apk_sha256: bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f
-    checksum_verification: "Matched artifact-bundled .sha256 and local sha256sum."
-    status: passed
-    checked_symbols:
-      - com/squareup/zstd/ZstdCompressor
-      - androidx/preference/PreferenceScreen
-      - eu/kanade/tachiyomi/source/ConfigurableSource
-      - eu/kanade/tachiyomi/source/Source
-      - eu/kanade/tachiyomi/source/model/RefreshContext
-      - eu/kanade/tachiyomi/source/online/HttpSource
-      - eu/kanade/tachiyomi/source/model/SManga
-      - eu/kanade/tachiyomi/source/model/SChapter
-      - eu/kanade/tachiyomi/source/model/Page
-      - getMangaUpdate
-      - fetchRelatedMangaList
-      - getChapterList
-      - getPageList
-      - fetchPageList
-      - CaptchaAutoResolveCoordinator
-      - TachiyomiApkClassLoaderPolicy
-      - org/brotli/dec/BrotliInputStream
+  FINAL_DEBUG_78D:
+    type: ci_evidence
+    status: success
+    run_id: 33536918698
+    run_number: 148
+    tested_source_head: 78d128189277167cd2f0c84979c9f94139b9ff05
+    debug_apk_build: success
+    artifact_upload: success
 
   CI_STATUS_FILE:
     type: evidence
     path: .ci/mihon-fix-latest.json
-    run_id: 33161055561
-    source_sha: 1f795b437bbcacf89fee374d49417dbfad2b14c8
-    verify: success
-    signed_release: success
+    records: FINAL_CI_78D
 
-  DEVICE_PRE_FINAL:
-    type: evidence
-    status: historical
-    observations:
-      - "Five installed Mihon extension APKs loaded successfully with dozens of sources."
-      - "Original UncaughtExceptionInterceptor default-client failure disappeared after host fix."
-      - "Missing okhttp3.brotli.BrotliInterceptor host class was observed and fixed."
-      - "Comix Cloudflare WebView solve changed cf_clearance, retried original request, and returned HTTP 200."
-      - "Comix, MangaDot.net, and Manga Ball then hit GeneratedSerializer.typeParametersSerializers AbstractMethodError."
-      - "Weeb Central hit the obsolete legacy details/chapter path."
-      - "Later runs exposed SManga.getMemo and Source.getMangaUpdate ABI gaps, both resolved in newer host code."
-      - "A Mihon 1.6 MangaDex continuity case returned 0 manga before the combined current repository path superseded that handling."
+  FIX_PERSISTED_SNAPSHOTS:
+    type: fix
+    status: implemented_tested_and_optimized_apk_verified
+    responsibility: "Preserve host-owned Mihon manga/chapter state across app process restart and allow restored DB content to resolve after asynchronous extension loading."
+    files:
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/state/MihonSnapshotPersistence.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/core/parser/AwaitingMihonMangaRepository.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/core/parser/MangaRepository.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/MihonExtensionManager.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/extensions/runtime/ExternalExtensionManagerFacade.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/extensions/runtime/ExternalExtensionManagerRuntime.kt
+      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/MihonMangaRepository.kt
+      - app/src/test/kotlin/io/github/landwarderer/futon/mihon/state/MihonSnapshotPersistenceTest.kt
+    disk_file: mihon-model-snapshots-v1.json
+    location: noBackupFilesDir
+    schema_version: 1
+    max_manga_entries: 500
+    max_chapter_entries: 1000
+    key: "sourceId + exact URL"
+    url_normalization: false
+    extension_implementation_objects_serialized: false
+    synchronized: true
+    fsync_before_replace: true
+    atomic_replace_when_supported: true
+    corrupt_file_behavior: cache_miss_and_recoverable
+    unsupported_schema_behavior: ignored_cache_miss
+    initial_extension_readiness_wait: true
+    initial_load_signal_completed_in_finally: true
 
-  POST_D5_DEVICE_VALIDATION:
-    type: unresolved_test
-    status: superseded_by_newer_source
-    superseded_by: POST_157D_DEVICE_VALIDATION
-    evidence_received: false
+  FIX_RESTORE_FIELD_FIDELITY:
+    type: fix
+    status: implemented_and_regression_tested
+    commit: 809a8900f9f662b516b61eb7443cbf6c78021e6a
+    root_cause: "Modern model setters can mutate independently persisted legacy fields during restore."
+    restore_order_rules:
+      - set_SManga_genres_then_reapply_genre
+      - set_SChapter_number_then_reapply_chapter_number
+      - set_SChapter_scanlators_then_reapply_scanlator
+    strict_fixture_head: 78d128189277167cd2f0c84979c9f94139b9ff05
 
-  POST_157D_DEVICE_VALIDATION:
-    type: unresolved_test
-    status: superseded_by_newer_tested_tree
-    superseded_by: POST_9E5_DEVICE_VALIDATION
-    evidence_received: false
-    source_sha: 157d94e249e2cc06b86b2088f9616802575efa5f
+  PERSISTENCE_TESTS:
+    type: regression_suite
+    class: io.github.landwarderer.futon.mihon.state.MihonSnapshotPersistenceTest
+    included_in_ci: true
+    coverage:
+      - store_recreation_models_process_restart
+      - legacy_and_modern_field_fidelity
+      - source_id_isolation_for_identical_urls
+      - corrupt_file_fallback_and_recovery
+      - unsupported_schema_fallback
 
-  POST_9E5_DEVICE_VALIDATION:
-    type: unresolved_test
-    status: open
-    evidence_received: false
-    tested_pr_head: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
-    latest_app_source_head: 85f19b491f2c4837e95c99e828fdb28f32d960c0
-    signed_artifact_id: 9623914916
-    signed_apk_sha256: bcbe14a5d536703aa2f0c278f9668238d03845bc8a33974bc7891aca58fad25f
-    required_sources:
-      - Comix
-      - MangaDot.net
-      - Manga Ball
-      - Weeb Central
-      - MangaRead.org
-    required_paths:
-      - browse_or_popular
-      - search
-      - details
-      - chapters
-      - pages_and_images
-    note: "Current CI/DEX validation is green, but no real-device result for this exact tested tree is recorded yet."
+  FIX_SHARED_CHAPTER_SNAPSHOT:
+    type: historical_current_fix
+    status: implemented_and_retained
+    root_cause: repository_instance_local_chapter_snapshot_loss
+    key: "sourceId + exact chapter URL"
+    process_local: true
+    note: "Still useful inside a process; durable persistence now also covers restart."
 
   FIX_DEFAULT_CLIENT:
     type: fix
     status: implemented_and_tested
-    includes:
-      - UncaughtExceptionInterceptor_first
-      - UserAgentInterceptor_second
-      - CloudflareInterceptor_third
-      - derive_from_full_base_client_configuration
-      - rebuild_only_interceptor_lists
-      - forbidden_compression_filtering
-      - preserve_compatible_host_interceptors
-      - legacy_brotli_name_filter
+    interceptor_order:
+      - UncaughtExceptionInterceptor
+      - UserAgentInterceptor
+      - CloudflareInterceptor
+    preserves_full_base_client_configuration: true
+    rebuilds_only_interceptor_lists: true
 
   FIX_BROTLI_ZSTD_RUNTIME:
     type: fix
     status: implemented_tested_and_dex_verified
-    includes:
-      - okhttp_brotli_host_runtime
-      - okhttp_zstd_host_runtime
-      - zstd_static_graph_anchor
-      - legacy_cloudflare_client_brotli
-      - modern_keiyoushi_default_client_without_brotli_network_interceptor
-
-  FIX_HTTP_SOURCE_MODERN_LEGACY:
-    type: fix
-    status: implemented_tested_and_dex_verified
-    includes:
-      - legacy_cloudflareClient_default_for_HttpSource
-      - modern_suspend_direct_okhttp_paths
-      - legacy_fetch_override_reflection_dispatch
-      - UnsupportedOperationException_custom_fetch_fallback
-      - getHomeUrl_baseUrl
-      - tagged_cacheless_progress_image_request
-      - http_success_check_for_images
-      - RefreshContext_request_ABI
-      - SourceRequestContext_tagging
-    regression_tests:
-      - MihonModernHostContractTest
-      - MihonLegacyExtensionEndToEndTest
-      - MihonExtensionHostIntegrationTest
-
-  FIX_POST_157D_ABI_REPO_ALIGNMENT:
-    type: fix_group
-    status: implemented_tested_and_dex_verified
-    tested_pr_head: 9e5b7922bd2c71fbd8e3ac8c1dbe9eddf707660f
-    latest_app_source_head: 85f19b491f2c4837e95c99e828fdb28f32d960c0
-    commits:
-      - e617a5d5f4c356d43d0830643fdbad52e896b95b
-      - fd81be4797bbcdf3752ed06ba514b0cfda2156c0
-      - d5c344c126c8cecd7716c77c0871418b6c6ec522
-      - 87bbda494c48355f9c98754b82143533f292b777
-      - 4f254b2b838338a6bdd0ca1a4bac83fb4785b4a2
-      - 00a488a1b25dba7dc5f18b42e30660fb4ad768db
-      - 85f19b491f2c4837e95c99e828fdb28f32d960c0
-    includes:
-      - RefreshContext_and_modern_HttpSource_request_ABI
-      - modern_genres_mapping
-      - preserve_protobuf_extension_lib_version
-      - declared_source_browser_origin
-      - shared_Mihon_source_preference_namespace
-      - isolate_extension_repository_failures
-      - extension_repo_fallback_version_parsing
-      - optimized_APK_ABI_gate_expansion
-
-  FIX_CLOUDFLARE:
-    type: fix
-    status: on_device_proven_for_historical_comix_and_retained
-    strategy: "Chromium/WebView solves challenge, host observes changed clearance, original OkHttp source request retries."
-    proven_source: Comix
-    proven_result: HTTP_200_after_retry
-
-  KOTOTORO_CLOUDFLARE_ORCHESTRATION_PARITY:
-    type: unverified_parity_delta
-    status: open_not_root_cause_without_device_evidence
-    current_kototoro_sha: 19cbb0790744eb28e5accead7e9514d976b02f3d
-    futon_state: older_simpler_port_retained
-    kototoro_features_not_fully_ported:
-      - CloudFlareSingleFlight
-      - resolver_state_tracking
-      - automatic_manual_strategy_selection
-      - recent_success_retry_window
-      - explicit_manual_fallback
-      - original_request_probe
-      - foreground_aware_resolution
-      - per_source_auto_captcha_opt_out
-      - newer_KotoNetworkHelper_cloudflare_strategy
-    action_if_current_device_failure_matches: "Port the relevant current Kototoro orchestration as literally as practical with attribution and regression tests instead of adding a Futon-only workaround."
-
-  FIX_SMANGA_MEMO:
-    type: fix
-    status: implemented_and_tested
+    modern_default_client_excludes_incompatible_compression_interceptors: true
+    legacy_compatibility_retained: true
 
   FIX_SOURCE_API_16:
     type: fix
     status: implemented_tested_and_dex_verified
     includes:
-      - SMangaUpdate
-      - Source.getMangaUpdate
-      - legacy_details_chapters_fallback
-      - MihonMangaRepository_combined_update_path
+      - Source_getPopularManga
+      - Source_getLatestUpdates
+      - Source_getSearchManga
+      - Source_getFilterList
+      - Source_getMangaUpdate
+      - Source_getPageList
+      - HttpSource_getHomeUrl
+      - HttpSource_getImageUrl
+      - SManga_memo
+      - SChapter_memo
+      - legacy_Rx_fallback
 
   FIX_API26:
     type: fix
     status: implemented_and_tested
     from_min_sdk: 23
     to_min_sdk: 26
-    reason: "Avoid incompatible interface-desugaring ABI for dynamically loaded extension serializers and align with current Mihon/Keiyoushi baseline."
+    reason: "Prevent dynamic extension serializer/default-method desugaring ABI mismatch."
 
   FIX_CLASSLOADER_POLICY:
     type: fix
-    status: implemented_with_regression_coverage_and_dex_verified
-    files:
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/ChildFirstPathClassLoader.kt
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/ChildFirstClassLoaderPolicy.kt
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt
-    implementation: "DexClassLoader plus explicit host-owned Tachiyomi ABI delegation."
-    parent_owned_namespaces:
-      - java
-      - javax
-      - kotlin
-      - kotlinx.coroutines
-      - android
-      - androidx
-      - org.json
-      - org.jsoup
-      - okhttp3
-      - okio
-      - rx
-      - eu.kanade.tachiyomi.source
-      - eu.kanade.tachiyomi.network
-      - eu.kanade.tachiyomi.util
-      - uy.kohesive.injekt
-      - ireader.core
-      - io.ktor
-      - com.fleeksoft
+    status: implemented_tested_and_dex_verified
+    implementation: TachiyomiApkClassLoaderPolicy
+    host_owned_abi: true
     child_first_bridge_exceptions:
       - "$-CC"
       - "$DefaultImpls"
-    regression_test: TachiyomiApkClassLoaderPolicyTest
 
-  CLASSLOADER_PORT_DECISION_2026_08_26:
-    type: decision
-    status: superseded_port_completed
-    former_status: deferred_pending_device_evidence
-    superseded_by: FIX_CLASSLOADER_POLICY
+  FIX_CLOUDFLARE:
+    type: fix
+    status: historical_device_proven_and_retained
+    strategy: "WebView solve, changed clearance detection, retry original source request."
+    historical_proven_source: Comix
+    historical_result: HTTP_200_after_retry
+
+  KOTOTORO_CLOUDFLARE_PARITY:
+    type: unverified_parity_delta
+    status: open_not_root_cause_without_current_device_evidence
+    futon_state: older_simpler_orchestration_retained
+    kototoro_features:
+      - CloudFlareSingleFlight
+      - resolver_state_tracking
+      - automatic_manual_strategy_selection
+      - recent_success_behavior
+      - explicit_manual_fallback
+      - per_source_auto_captcha_control
+    action_if_current_failure_matches: "Inspect current exact Kototoro paths and port only the smallest demonstrated semantic delta with attribution and tests."
+
+  KOTOTORO_REPO:
+    type: reference_repository
+    value: Kototoro-app/Kototoro
+    branch: devel
+    live_verified_sha: b2c20e84298bfcc806567d784c8cb6607b1c919f
+    previous_recorded_sha: 19cbb0790744eb28e5accead7e9514d976b02f3d
+    commits_ahead_of_previous: 32
+    exact_classloader_policy_changed_in_compare: false
+    exact_network_helper_changed_in_compare: false
+    caveat: "Broader delta contains other app and extension-manager work. Inspect the exact path relevant to any future failure before declaring parity unchanged."
+    license: Apache-2.0
+    role: preferred_reference_implementation
+
+  KEIYOUSHI_EXTENSIONS_LIB:
+    type: reference_repository
+    value: keiyoushi/extensions-lib
+    branch: main
+    live_verified_sha: 42255ee5fa96d9425697b7c143587483207308d1
+    previous_recorded_sha: 18a8e26be2320b48bdaa11840170479b62989e23
+    release_line: 1.6
+    abi_tracking_added: true
+    source_level_futon_missing_current_source_or_http_source_entry: false
 
   ROOT_CAUSE_DEFAULT_CLIENT_INTERCEPTOR:
     type: historical_root_cause
@@ -351,7 +250,7 @@ nodes:
     signature: GeneratedSerializer_typeParametersSerializers_AbstractMethodError
     resolved_by: FIX_API26
 
-  ROOT_CAUSE_LEGACY_DETAILS_CHAPTERS:
+  ROOT_CAUSE_DETAILS_CHAPTERS:
     type: historical_root_cause
     status: resolved
     signature: obsolete_details_chapter_path
@@ -361,7 +260,7 @@ nodes:
     type: historical_root_cause
     status: resolved
     signature: SManga_getMemo_NoSuchMethodError
-    resolved_by: FIX_SMANGA_MEMO
+    resolved_by: FIX_SOURCE_API_16
 
   ROOT_CAUSE_SOURCE_GET_MANGA_UPDATE:
     type: historical_root_cause
@@ -373,114 +272,61 @@ nodes:
     type: historical_root_cause
     status: resolved_superseded
     signature: Mihon_1_6_MangaDex_zero_manga_after_legacy_fallback
-    root_cause_family: duplicate_or_incorrect_source_continuity
     resolved_by: FIX_SOURCE_API_16
 
-  CI_FAILURE_76F:
-    type: historical_regression
-    source_sha: 76f56492ce07af04bc1f003ca7ff33e92b27ab1d
+  ROOT_CAUSE_REPOSITORY_SNAPSHOT_LOSS:
+    type: historical_root_cause
     status: resolved
-    root_cause: "Centralized compression filtering lost compatibility with a legacy/fork test interceptor named BrotliInterceptor."
-    fix: "Restore simple-name BrotliInterceptor filter in addition to concrete OkHttp singleton filtering."
+    signature: complete_SChapter_metadata_lost_across_repository_instances
+    resolved_by: FIX_SHARED_CHAPTER_SNAPSHOT
 
-  CI_FAILURE_86F:
-    type: historical_regression
-    source_sha: 86f6acd280fa79591249cebb9dce7a9649f78edd
+  ROOT_CAUSE_RESTART_STATE_LOSS:
+    type: root_cause_family
+    status: resolved_in_code_pending_device_validation
+    signature: restored_Mihon_content_before_extension_runtime_ready_or_snapshot_missing_after_process_restart
+    resolved_by: FIX_PERSISTED_SNAPSHOTS
+
+  ROOT_CAUSE_RESTORE_SETTER_FIDELITY:
+    type: ci_discovered_root_cause
     status: resolved
-    root_cause: "Construction-time android.util.Log.d calls in interceptor filtering throw RuntimeException in plain JVM Android stubs; both red tests shared this one cause."
-    fix: "Remove nonessential construction-time skip logs without changing runtime filtering behavior."
-    resolved_by_source_sha: 157d94e249e2cc06b86b2088f9616802575efa5f
+    signature: modern_setters_overwrite_independent_legacy_fields_during_snapshot_restore
+    resolved_by: FIX_RESTORE_FIELD_FIDELITY
 
-  KOTOTORO_REPO:
-    type: reference_repository
-    value: Kototoro-app/Kototoro
-    branch: devel
-    live_verified_sha: 19cbb0790744eb28e5accead7e9514d976b02f3d
-    previous_live_verified_sha: f4f37a5b7290da05c10b9325912f2a37ebeff0f9
-    previous_reference_sha: dec0ef781644245f6937dc1cafc8ca84963fe08e
-    comparison_from_previous_live: "11 commits; no changes in targeted Mihon/Tachiyomi reference areas."
-    license: Apache-2.0
-    role: preferred_reference_implementation
-    head_change_scope_since_previous_reference: "9 commits, no changes to the Mihon/Tachiyomi runtime, Source ABI, network helper, classloader policy, or extension-runtime reference files used here."
+  SAMSUNG_PLAY_PROTECT_HISTORICAL:
+    type: device_evidence
+    status: confirmed_on_previous_artifact
+    device: Samsung Galaxy S25 Ultra
+    observation: "Google Play Protect blocked an earlier optimized Futon APK as an unknown developer; Trotzdem installieren did not complete."
+    earlier_signing_kind: temporary-test-key
+    malformed_apk_proven: false
+    mihon_runtime_failure_proven: false
 
-  KOTO_SOURCE:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/eu/kanade/tachiyomi/source/Source.kt
-    blob_sha_at_live_head: 1876ee1e16fedfc749b2f0a57a9e9a1533ea7058
-
-  KOTO_HTTP_SOURCE:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/eu/kanade/tachiyomi/source/online/HttpSource.kt
-    blob_sha_at_live_head: 73d06b35bc3c6b7427032401d078508715a04241
-
-  KOTO_NETWORK_HELPER:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/mihon/compat/KotoNetworkHelper.kt
-    blob_sha_at_live_head: f98fffe205c63b1e1ee75028c87792b9c3ff38ee
-
-  KOTO_CLASSLOADER_POLICY:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/extensions/runtime/tachiyomi/TachiyomiApkClassLoaderPolicy.kt
-    blob_sha_at_live_head: 77c7d23fb73d6a5764db1dba8a0068cfd5aa36df
-    assessment: ported_into_current_futon
-
-  KOTO_CAPTCHA_HANDLER:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/core/exceptions/resolve/CaptchaHandler.kt
-    blob_sha_at_live_head: ac15513dc32ee304057736bafb6e974072e3e07e
-
-  KOTO_CAPTCHA_COORDINATOR:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/core/exceptions/resolve/CaptchaAutoResolveCoordinator.kt
-    blob_sha_at_live_head: ca78c86da146117dae8af3fd7057d1f3ba47d2c7
-
-  KOTO_CLOUDFLARE_SINGLE_FLIGHT:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/core/exceptions/resolve/CloudFlareSingleFlight.kt
-    blob_sha_at_live_head: 1f664384597a218986369893e6de92eb04c1023a
-
-  KOTO_WEBVIEW_EXECUTOR:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/core/network/webview/WebViewExecutor.kt
-    blob_sha_at_live_head: 66147b90d41a81bc3805e67303c02883041cd01f
-
-  KOTO_SOURCE_SETTINGS:
-    type: reference
-    repo_node: KOTOTORO_REPO
-    path: app/src/main/kotlin/org/skepsun/kototoro/core/prefs/SourceSettings.kt
-    blob_sha_at_live_head: fa3fc4b3b12a996c2d65f941aa5b1ef50134fb13
-
-  KEIYOUSHI_EXTENSIONS_LIB:
-    type: reference_repository
-    value: keiyoushi/extensions-lib
-    branch: main
-    live_verified_sha: 18a8e26be2320b48bdaa11840170479b62989e23
-    live_verified_at: 2026-08-27
-    role: current_extension_host_contract_reference
-
-  COPY_REFERENCE_POLICY:
-    type: instruction
-    rule: "If Futon fails a Mihon/Keiyoushi behavior and Kototoro has a demonstrated working equivalent, port the relevant Kototoro implementation as literally as practical, adapting only required integration boundaries, port tests, preserve Apache-2.0 attribution, and record exact source path + SHA."
-
-  FAILURE_CLASSLOADER_FAMILY:
-    type: trigger
-    patterns:
-      - AbstractMethodError
-      - NoSuchMethodError
-      - IncompatibleClassChangeError
-      - ClassCastException
-      - VerifyError
-      - duplicate_API_class_identity
-      - classloader_specific_ClassNotFoundException
-    action: "Benchmark the already-ported Futon policy against current Kototoro before adding any ad-hoc exception."
+  POST_78D_REPOSITORY_KEY_DEVICE_VALIDATION:
+    type: unresolved_test
+    status: open
+    evidence_received: false
+    tested_source_head: 78d128189277167cd2f0c84979c9f94139b9ff05
+    tested_tree_sha: 2848e13c2b26566137a4a252a6f5c418fee8d012
+    artifact_id: 9812861083
+    apk_sha256: 4f0bdca5bc1bf29f37663485275dacedc25adf36d20ee58fb10cfe4cf1b6b745
+    signing_kind: repository-release-key
+    required_install_check:
+      - samsung_clean_install_if_signature_conflict_requires_uninstall
+      - play_protect_result_for_exact_repository_key_apk
+    required_sources:
+      - Comix
+      - MangaDot.net
+      - Manga Ball
+      - Weeb Central
+      - MangaRead.org
+    required_paths:
+      - browse_or_popular
+      - search
+      - details
+      - chapters
+      - pages_and_images
+      - app_restart_and_reopen_persisted_mihon_content
+    next_if_clean_install_still_blocked: "Capture exact installer/Play Protect evidence; Android Developer Verification or Play distribution may be required."
 
   SAFETY_CONSTRAINTS:
     type: constraints
@@ -489,164 +335,13 @@ nodes:
       - keep_pr_1_draft
       - never_merge_without_explicit_user_request
       - never_modify_devel_directly_without_explicit_user_request
+      - never_publish_release_without_explicit_user_request
       - never_expose_signing_secrets
       - never_claim_device_fixed_without_current_device_evidence
 
-  FUTON_MIHON_COMPAT_BOUNDARY:
-    type: architecture_boundary
-    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/compat/**
-    responsibility: "Mihon host ABI, request context, and dynamic extension compatibility."
-
-  FUTON_MIHON_MODEL_BOUNDARY:
-    type: architecture_boundary
-    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/model/**
-    responsibility: "Mihon/Futon data conversion and complete model snapshot helpers."
-
-  FUTON_MIHON_STATE_BOUNDARY:
-    type: architecture_boundary
-    path: app/src/main/kotlin/io/github/landwarderer/futon/mihon/state/**
-    responsibility: "Process-local Mihon integration state, including the bounded shared chapter snapshot store."
-
-  FUTON_MIHON_NETWORK_CLOUDFLARE_BOUNDARY:
-    type: architecture_boundary
-    paths:
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/compat/**
-      - app/src/main/kotlin/io/github/landwarderer/futon/core/network/**
-      - app/src/main/kotlin/io/github/landwarderer/futon/core/exceptions/**
-    responsibility: "Existing Mihon network, source-context, WebView, and Cloudflare handling; no parallel architecture added here."
-
-  FUTON_MIHON_LOADER_MANAGER_BOUNDARY:
-    type: architecture_boundary
-    paths:
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/extensions/**
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/ExtensionRepoService.kt
-    responsibility: "Extension loader and manager behavior, including runtime classloader policy."
-
-  FIX_SHARED_CHAPTER_SNAPSHOT:
-    type: fix
-    status: implemented_tested_and_signed_apk_verified
-    commit: 88006baa10d45dfb1a28c7721a74ce85876e0c45
-    tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
-    final_ci_verified_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
-    files:
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/state/MihonChapterSnapshotStore.kt
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/model/MihonModelSnapshots.kt
-      - app/src/main/kotlin/io/github/landwarderer/futon/mihon/MihonMangaRepository.kt
-      - app/src/test/kotlin/io/github/landwarderer/futon/mihon/MihonMangaRepositoryTest.kt
-    key: "sourceId + exact chapter URL"
-    max_entries: 500
-    process_local: true
-    synchronized: true
-    defensive_put_and_get_copies: true
-    repository_instance_change_test: MihonMangaRepositoryTest.chapterSnapshotSurvivesRepositoryInstanceChange
-    source_isolation_test: MihonMangaRepositoryTest.sourceIdsIsolateIdenticalChapterUrls
-    defensive_copy_test: MihonMangaRepositoryTest.returnedChapterSnapshotIsDefensiveCopy
-
-  CURRENT_CI_22032:
-    type: evidence
-    tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
-    workflow: Mihon Fix Signed Test Build
-    run_id: 33159391334
-    run_number: 277
-    status: success
-    focused_mihon_tests: success
-    release_lint: success
-    optimized_r8_release: success
-    optimized_abi_gate: success
-    signature_verify: success
-    signed_artifact_name: Futon-Mihon-Fix-Signed-Release
-    signed_artifact_id: 9681476261
-    signed_apk_sha256: acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee
-    signing_kind: temporary-test-key
-
-  POST_22032_DEVICE_VALIDATION:
-    type: unresolved_test
-    status: open
-    evidence_received: false
-    tested_source_head: 22032fac0dc413c2cfa3af5d9bbd196d82f7fc93
-    signed_artifact_id: 9681476261
-    signed_apk_sha256: acaa9a48a62391f8ad667a4801394cae13d6c41c44e971c69f9d3cacc3ee04ee
-    supersedes: POST_9E5_DEVICE_VALIDATION
-    note: "CI and optimized APK checks are green; real-device validation remains pending."
-  FINAL_CI_1F795:
-    type: evidence
-    tested_feature_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
-    workflow: Mihon Fix Signed Test Build
-    run_id: 33161055561
-    run_number: 279
-    status: success
-    focused_mihon_tests: success
-    release_lint: success
-    optimized_r8_release: success
-    optimized_abi_gate: success
-    signature_verify: success
-    signed_artifact_name: Futon-Mihon-Fix-Signed-Release
-    signed_artifact_id: 9682161782
-    signed_apk_sha256: 2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28
-    signing_kind: temporary-test-key
-
-  POST_1F795_DEVICE_VALIDATION:
-    type: unresolved_test
-    status: open
-    evidence_received: false
-    tested_feature_head: 1f795b437bbcacf89fee374d49417dbfad2b14c8
-    signed_artifact_id: 9682161782
-    signed_apk_sha256: 2bbccf3978a7e1121bd879434e0df5864840a7a9892a3c634e3e177141293b28
-    supersedes: POST_22032_DEVICE_VALIDATION
-    note: "CI and optimized APK checks are green; real-device validation remains pending."
-  KOTOTORO_LIVE_REFRESH_2026_08_28:
-    type: reference_refresh
-    repository: Kototoro-app/Kototoro
-    branch: devel
-    live_verified_sha: 19cbb0790744eb28e5accead7e9514d976b02f3d
-    previous_live_verified_sha: f4f37a5b7290da05c10b9325912f2a37ebeff0f9
-    commits_since_previous_live: 11
-    targeted_mihon_areas_changed: false
-    action: no_additional_port
-
-  RELEASE_SIGNING_SETUP_33AA:
-    type: release_signing_support
-    status: implemented
-    feature_head: 33aa754a6e3c0e17030ba92fdcd7d03976200ea1
-    files:
-      - scripts/create-release-signing-key.sh
-      - docs/release-signing.md
-    workflow_secret_names:
-      - KEYSTORE_FILE
-      - KEYSTORE_PASSWORD
-      - KEY_ALIAS
-      - KEY_PASSWORD
-    private_key_generated_in_agent_environment: false
-    workflow_requires_secret_upload: true
-  SAMSUNG_PLAY_PROTECT_BLOCK_2026_08_28:
-    type: device_evidence
-    status: confirmed_visible_block
-    device: Samsung Galaxy S25 Ultra
-    evidence: "Google Play Protect blocks Futon because it knows no other apps from this developer; Trotzdem installieren does not complete installation."
-    root_cause_class: unknown_developer_sideload_block
-    malformed_apk_proven: false
-    mihon_runtime_failure_proven: false
-    play_protect_bypass_added: false
-    next_action: stable_key_then_android_developer_verification_or_play_distribution
-    stable_key_device_validation: pending
-  CI_FINAL_33AA:
-    type: ci_validation
-    status: success
-    feature_head: 33aa754a6e3c0e17030ba92fdcd7d03976200ea1
-    workflow: Mihon_Fix_Signed_Test_Build
-    push_run_id: 33178026349
-    push_run_number: 283
-    pr_run_id: 33178030385
-    pr_run_number: 284
-    artifact_name: Futon-Mihon-Fix-Signed-Release
-    artifact_id: 9689815079
-    artifact_digest: sha256:833ab248a78332d8fa0f1faa64765112f0cb4591dab6cf37b5471d9f11ae04b4
-    apk_filename: Futon-9.8.1-mihon-fix-test-signed-release.apk
-    apk_size_bytes: 21142869
-    apk_sha256: aafd1afe66dce4f18dfff11887c9622ca1684d6c355d8b652b964a09bbd0c608
-    signature_verification: success
-    signing_kind: temporary-test-key
-    device_validation: pending
+  COPY_REFERENCE_POLICY:
+    type: instruction
+    rule: "If Futon fails a Mihon/Keiyoushi behavior and current Kototoro has a demonstrated working equivalent, port the smallest relevant implementation as literally as practical, adapt only required integration boundaries, port tests, preserve Apache-2.0 attribution, and record exact path plus SHA."
 
 edges:
   - from: FUTON_REPO
@@ -657,49 +352,13 @@ edges:
     to: PR_1
   - from: FUTON_FIX_BRANCH
     relation: validated_by
-    to: CURRENT_CI_9E5
-  - from: CURRENT_CI_9E5
-    relation: produced
-    to: CURRENT_APK_DEX_INSPECTION_9E5
-  - from: FINAL_CI_157D
-    relation: superseded_by
-    to: CURRENT_CI_9E5
-  - from: FINAL_APK_DEX_INSPECTION_157D
-    relation: superseded_by
-    to: CURRENT_APK_DEX_INSPECTION_9E5
+    to: FINAL_CI_78D
+  - from: FUTON_FIX_BRANCH
+    relation: validated_by
+    to: FINAL_DEBUG_78D
   - from: CI_STATUS_FILE
     relation: records
-    to: CURRENT_CI_9E5
-  - from: DEVICE_PRE_FINAL
-    relation: motivated
-    to: FIX_DEFAULT_CLIENT
-  - from: DEVICE_PRE_FINAL
-    relation: motivated
-    to: FIX_BROTLI_ZSTD_RUNTIME
-  - from: DEVICE_PRE_FINAL
-    relation: proved
-    to: FIX_CLOUDFLARE
-  - from: DEVICE_PRE_FINAL
-    relation: motivated
-    to: FIX_SOURCE_API_16
-  - from: DEVICE_PRE_FINAL
-    relation: motivated
-    to: FIX_API26
-  - from: FIX_DEFAULT_CLIENT
-    relation: informed_by
-    to: KOTO_NETWORK_HELPER
-  - from: FIX_HTTP_SOURCE_MODERN_LEGACY
-    relation: informed_by
-    to: KOTO_HTTP_SOURCE
-  - from: FIX_POST_157D_ABI_REPO_ALIGNMENT
-    relation: validated_by
-    to: CURRENT_CI_9E5
-  - from: FIX_CLASSLOADER_POLICY
-    relation: ported_from
-    to: KOTO_CLASSLOADER_POLICY
-  - from: CLASSLOADER_PORT_DECISION_2026_08_26
-    relation: superseded_by
-    to: FIX_CLASSLOADER_POLICY
+    to: FINAL_CI_78D
   - from: ROOT_CAUSE_DEFAULT_CLIENT_INTERCEPTOR
     relation: resolved_by
     to: FIX_DEFAULT_CLIENT
@@ -709,79 +368,54 @@ edges:
   - from: ROOT_CAUSE_SERIALIZER_ABI
     relation: resolved_by
     to: FIX_API26
-  - from: ROOT_CAUSE_LEGACY_DETAILS_CHAPTERS
+  - from: ROOT_CAUSE_DETAILS_CHAPTERS
     relation: resolved_by
     to: FIX_SOURCE_API_16
   - from: ROOT_CAUSE_SMANGA_MEMO
     relation: resolved_by
-    to: FIX_SMANGA_MEMO
+    to: FIX_SOURCE_API_16
   - from: ROOT_CAUSE_SOURCE_GET_MANGA_UPDATE
     relation: resolved_by
     to: FIX_SOURCE_API_16
   - from: ROOT_CAUSE_MANGADEX_CONTINUITY
     relation: resolved_by
     to: FIX_SOURCE_API_16
-  - from: POST_D5_DEVICE_VALIDATION
-    relation: superseded_by
-    to: POST_157D_DEVICE_VALIDATION
-  - from: POST_157D_DEVICE_VALIDATION
-    relation: superseded_by
-    to: POST_9E5_DEVICE_VALIDATION
-  - from: POST_9E5_DEVICE_VALIDATION
-    relation: validates
-    to: FUTON_FIX_BRANCH
-  - from: KOTOTORO_CLOUDFLARE_ORCHESTRATION_PARITY
+  - from: ROOT_CAUSE_REPOSITORY_SNAPSHOT_LOSS
+    relation: resolved_by
+    to: FIX_SHARED_CHAPTER_SNAPSHOT
+  - from: ROOT_CAUSE_RESTART_STATE_LOSS
+    relation: resolved_by
+    to: FIX_PERSISTED_SNAPSHOTS
+  - from: ROOT_CAUSE_RESTORE_SETTER_FIDELITY
+    relation: resolved_by
+    to: FIX_RESTORE_FIELD_FIDELITY
+  - from: FIX_PERSISTED_SNAPSHOTS
+    relation: validated_by
+    to: PERSISTENCE_TESTS
+  - from: FIX_PERSISTED_SNAPSHOTS
+    relation: validated_by
+    to: FINAL_CI_78D
+  - from: FIX_RESTORE_FIELD_FIDELITY
+    relation: validated_by
+    to: FINAL_CI_78D
+  - from: FIX_SOURCE_API_16
     relation: compared_against
-    to: KOTO_CAPTCHA_COORDINATOR
-  - from: KOTOTORO_CLOUDFLARE_ORCHESTRATION_PARITY
-    relation: compared_against
-    to: KOTO_NETWORK_HELPER
-  - from: FAILURE_CLASSLOADER_FAMILY
-    relation: triggers_review_of
-    to: FIX_CLASSLOADER_POLICY
-  - from: COPY_REFERENCE_POLICY
-    relation: governs
+    to: KEIYOUSHI_EXTENSIONS_LIB
+  - from: FIX_CLASSLOADER_POLICY
+    relation: informed_by
     to: KOTOTORO_REPO
+  - from: KOTOTORO_CLOUDFLARE_PARITY
+    relation: compared_against
+    to: KOTOTORO_REPO
+  - from: SAMSUNG_PLAY_PROTECT_HISTORICAL
+    relation: motivates
+    to: POST_78D_REPOSITORY_KEY_DEVICE_VALIDATION
+  - from: FINAL_CI_78D
+    relation: requires_real_device_validation
+    to: POST_78D_REPOSITORY_KEY_DEVICE_VALIDATION
   - from: SAFETY_CONSTRAINTS
     relation: governs
     to: FUTON_FIX_BRANCH
-  - from: FUTON_FIX_BRANCH
-    relation: contains
-    to: FIX_SHARED_CHAPTER_SNAPSHOT
-  - from: FIX_SHARED_CHAPTER_SNAPSHOT
-    relation: belongs_to
-    to: FUTON_MIHON_STATE_BOUNDARY
-  - from: FIX_SHARED_CHAPTER_SNAPSHOT
-    relation: uses
-    to: FUTON_MIHON_MODEL_BOUNDARY
-  - from: FIX_SHARED_CHAPTER_SNAPSHOT
-    relation: validated_by
-    to: CURRENT_CI_22032
-  - from: POST_9E5_DEVICE_VALIDATION
-    relation: superseded_by
-    to: POST_22032_DEVICE_VALIDATION
-  - from: CURRENT_CI_22032
-    relation: validates
-    to: FUTON_FIX_BRANCH
-  - from: FUTON_FIX_BRANCH
-    relation: validated_by
-    to: FINAL_CI_1F795
-  - from: POST_22032_DEVICE_VALIDATION
-    relation: superseded_by
-    to: POST_1F795_DEVICE_VALIDATION
-  - from: CI_STATUS_FILE
-    relation: records
-    to: FINAL_CI_1F795
-  - from: KOTOTORO_LIVE_REFRESH_2026_08_28
-    relation: refreshes
+  - from: COPY_REFERENCE_POLICY
+    relation: governs
     to: KOTOTORO_REPO
-
-  - from: RELEASE_SIGNING_SETUP_33AA
-    relation: documents
-    to: FUTON_REPO
-  - from: SAMSUNG_PLAY_PROTECT_BLOCK_2026_08_28
-    relation: blocks
-    to: POST_1F795_DEVICE_VALIDATION
-  - from: CI_FINAL_33AA
-    relation: validates
-    to: RELEASE_SIGNING_SETUP_33AA
