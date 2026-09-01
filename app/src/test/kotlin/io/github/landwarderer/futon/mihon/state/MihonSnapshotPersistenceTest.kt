@@ -38,7 +38,7 @@ class MihonSnapshotPersistenceTest {
         assertEquals("Author", restoredManga.author)
         assertEquals("Artist", restoredManga.artist)
         assertEquals("Persisted description", restoredManga.description)
-        assertEquals("Action, Drama", restoredManga.genre)
+        assertEquals("Legacy genre string", restoredManga.genre)
         assertEquals(SManga.COMPLETED, restoredManga.status)
         assertEquals("https://example.test/cover.jpg", restoredManga.thumbnail_url)
         assertEquals(UpdateStrategy.ONLY_FETCH_ONCE, restoredManga.update_strategy)
@@ -141,12 +141,14 @@ class MihonSnapshotPersistenceTest {
             artist = "Artist"
             author = "Author"
             description = "Persisted description"
-            genre = "Action, Drama"
             status = SManga.COMPLETED
             thumbnail_url = "https://example.test/cover.jpg"
             update_strategy = UpdateStrategy.ONLY_FETCH_ONCE
             initialized = true
             genres = listOf("Action", "Drama")
+            // Keep the legacy string intentionally distinct from the modern list. The host setter
+            // mirrors genres into genre, so set the independent legacy value afterwards.
+            genre = "Legacy genre string"
             altTitles = listOf("Alt title")
             banner = "https://example.test/banner.jpg"
             contentRating = SManga.ContentRating.SUGGESTIVE
@@ -163,11 +165,13 @@ class MihonSnapshotPersistenceTest {
             url = CHAPTER_URL
             name = "Persisted chapter"
             date_upload = 1_717_171_717L
-            chapter_number = 12.5f
-            scanlator = "Group"
             number = "12.5"
+            chapter_number = 12.5f
             volume = "3"
             scanlators = listOf("Group", "Second Group")
+            // Keep the legacy value intentionally distinct from the modern list. The host setter
+            // mirrors scanlators into scanlator, so set the independent legacy value afterwards.
+            scanlator = "Group"
             note = "Extension note"
             memo = buildJsonObject {
                 put("path", path)
