@@ -9,162 +9,226 @@ permissions:
   contents: write
 
 jobs:
-  check_version:
+  release:
+    name: Verify, build and publish release
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get version from tag
-        id: tag
-        run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
-          echo "Tag version: $VERSION"
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          PATCH=${PATCH:-0}
-          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
-
-      - name: Read AndroidManifest versions
-        run: |
-          MANIFEST=app/src/main/AndroidManifest.xml
-          if [ ! -f "$MANIFEST" ]; then echo "Missing $MANIFEST" && exit 1; fi
-          MAN_VER=$(grep -oP 'android:versionName="\K[^"]+' "$MANIFEST" | head -n1)
-          MAN_CODE=$(grep -oP 'android:versionCode="\K[^\"]+' "$MANIFEST" | head -n1)
-          echo "manifest_version=$MAN_VER" >> $GITHUB_OUTPUT
-          echo "manifest_version_code=$MAN_CODE" >> $GITHUB_OUTPUT
-          echo "AndroidManifest: $MAN_VER ($MAN_CODE)"
-
-      - name: Read build.gradle defaults
-        run: |
-          FILE=app/build.gradle
-          if [ ! -f "$FILE" ]; then echo "Missing $FILE" && exit 1; fi
-          GRADLE_VER=$(grep -oP "versionName project.hasProperty\\('versionName'\\) \\? project.property\\('versionName'\\) : '\\K[^']+" "$FILE" | head -n1 || true)
-          GRADLE_CODE=$(grep -oP "versionCode project.hasProperty\\('versionCode'\\) \\? project.property\\('versionCode'\\).toInteger\\(\\) : \\K[0-9]+" "$FILE" | head -n1 || true)
-          echo "gradle_version=$GRADLE_VER" >> $GITHUB_OUTPUT
-          echo "gradle_version_code=$GRADLE_CODE" >> $GITHUB_OUTPUT
-          echo "build.gradle defaults: $GRADLE_VER ($GRADLE_CODE)"
-
-      - name: Compare tag with files
-        run: |
-          set -e
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          PATCH=${PATCH:-0}
-          EXPECTED_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
-
-          MAN_VER=$(grep -oP 'android:versionName="\K[^"]+' app/src/main/AndroidManifest.xml | head -n1)
-          MAN_CODE=$(grep -oP 'android:versionCode="\K[^\"]+' app/src/main/AndroidManifest.xml | head -n1)
-
-          GRADLE_VER=$(grep -oP "versionName project.hasProperty\\('versionName'\\) \\? project.property\\('versionName'\\) : '\\K[^']+" app/build.gradle | head -n1 || true)
-          GRADLE_CODE=$(grep -oP "versionCode project.hasProperty\\('versionCode'\\) \\? project.property\\('versionCode'\\).toInteger\\(\\) : \\K[0-9]+" app/build.gradle | head -n1 || true)
-
-          echo "Tag: $VERSION ($EXPECTED_CODE)"
-          echo "AndroidManifest: $MAN_VER ($MAN_CODE)"
-          echo "build.gradle: $GRADLE_VER ($GRADLE_CODE)"
-
-          if [ "$MAN_VER" != "$VERSION" ]; then echo "ERROR: AndroidManifest versionName ($MAN_VER) does not match tag ($VERSION)" && exit 1; fi
-          if [ "$GRADLE_VER" != "$VERSION" ]; then echo "ERROR: app/build.gradle default versionName ($GRADLE_VER) does not match tag ($VERSION)" && exit 1; fi
-          if [ "$MAN_CODE" != "$EXPECTED_CODE" ]; then echo "ERROR: AndroidManifest versionCode ($MAN_CODE) does not match expected ($EXPECTED_CODE)" && exit 1; fi
-          if [ "$GRADLE_CODE" != "$EXPECTED_CODE" ]; then echo "ERROR: app/build.gradle default versionCode ($GRADLE_CODE) does not match expected ($EXPECTED_CODE)" && exit 1; fi
-          echo "Version check passed."
-
-  build:
-    needs: check_version
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Notify Discord - Build Started
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BUILD }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then exit 0; fi
-          payload=$(jq -n --arg content "Build started for ${{ github.ref_name }}" '{content: $content}')
-          curl -s -H "Content-Type: application/json" -d "$payload" "$WEBHOOK" || true
-
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: temurin
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Notify Discord - Environment Setup Complete
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BUILD }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then exit 0; fi
-          payload=$(jq -n --arg content "Environment setup complete (Java 17, Android SDK)" '{content: $content}')
-          curl -s -H "Content-Type: application/json" -d "$payload" "$WEBHOOK" || true
-
-      - name: Get version from tag
+      - name: Resolve and validate release version
         id: version
+        shell: bash
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          VERSION=${TAG#v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          # Extract major.minor.patch and calculate version code
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION" 
-          PATCH=${PATCH:-0}
-          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
-          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          SOURCE_VERSION="$(grep -E '^versionName=' gradle.properties | tail -n 1 | cut -d= -f2-)"
+          SOURCE_CODE="$(grep -E '^versionCode=' gradle.properties | tail -n 1 | cut -d= -f2-)"
 
-      - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_FILE }}" | base64 -d > keystore.jks
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must use vMAJOR.MINOR.PATCH, got: $TAG"
+            exit 1
+          fi
 
-      - name: Notify Discord - Keystore Decoded
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          EXPECTED_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+
+          if [ "$SOURCE_VERSION" != "$VERSION" ]; then
+            echo "::error::gradle.properties versionName ($SOURCE_VERSION) does not match tag ($VERSION)"
+            exit 1
+          fi
+          if [ "$SOURCE_CODE" != "$EXPECTED_CODE" ]; then
+            echo "::error::gradle.properties versionCode ($SOURCE_CODE) does not match expected code ($EXPECTED_CODE)"
+            exit 1
+          fi
+          if [ ! -f "docs/releases/$VERSION.md" ]; then
+            echo "::error::Missing release notes: docs/releases/$VERSION.md"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$EXPECTED_CODE" >> "$GITHUB_OUTPUT"
+          echo "Release identity: $VERSION ($EXPECTED_CODE)"
+
+      - name: Verify release signing secrets
         env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BUILD }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then exit 0; fi
-          payload=$(jq -n --arg content "Keystore decoded" '{content: $content}')
-          curl -s -H "Content-Type: application/json" -d "$payload" "$WEBHOOK" || true
-
-      - name: Build release APK
-        env:
-          KEYSTORE_FILE: ${{ github.workspace }}/keystore.jks
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_FILE }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+          echo "Repository release signing configuration is present."
+
+      - name: Prepare release signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$GITHUB_WORKSPACE/keystore.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+          test -s "$KEYSTORE"
+          echo "::add-mask::$KEYSTORE_PASSWORD"
+          echo "::add-mask::$KEY_ALIAS"
+          echo "::add-mask::$KEY_PASSWORD"
+          echo "KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Run Mihon regression tests
+        run: |
+          set -euo pipefail
+          grep -Eq '^[[:space:]]*minSdk = 26$' app/build.gradle
+          ./gradlew testDebugUnitTest \
+            --tests "io.github.landwarderer.futon.mihon.ExtensionRepoServiceTest" \
+            --tests "io.github.landwarderer.futon.mihon.TachiyomiApkClassLoaderPolicyTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonModernHostContractTest" \
+            --tests "io.github.landwarderer.futon.mihon.MihonMangaRepositoryTest" \
+            --tests "io.github.landwarderer.futon.mihon.state.MihonSnapshotPersistenceTest" \
+            --tests "io.github.landwarderer.futon.mihon.model.MihonDataConvertersTest" \
+            --tests "io.github.landwarderer.futon.core.network.GitHubRawUrlCompatTest" \
+            --stacktrace \
+            --no-build-cache \
+            --no-configuration-cache
+
+      - name: Run release lint
+        run: >-
+          ./gradlew lintRelease
+          --stacktrace
+          --no-build-cache
+          --no-configuration-cache
+
+      - name: Build signed optimized release APK
+        env:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: |
-          ./gradlew assembleRelease \
-            -PversionName=${{ steps.version.outputs.version }} \
-            -PversionCode=${{ steps.version.outputs.version_code }} \
-            --no-build-cache --no-configuration-cache
+        run: >-
+          ./gradlew assembleRelease
+          -PversionName=${{ steps.version.outputs.version }}
+          -PversionCode=${{ steps.version.outputs.version_code }}
+          --stacktrace
+          --no-build-cache
+          --no-configuration-cache
 
-      - name: Notify Discord - APK Build Complete
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BUILD }}
+      - name: Verify optimized Mihon runtime ABI
+        shell: bash
         run: |
-          if [ -z "$WEBHOOK" ]; then exit 0; fi
-          payload=$(jq -n --arg content "Release APK build complete" '{content: $content}')
-          curl -s -H "Content-Type: application/json" -d "$payload" "$WEBHOOK" || true
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          rm -rf "$RUNNER_TEMP/futon-release-dex"
+          mkdir -p "$RUNNER_TEMP/futon-release-dex"
+          unzip -q "$APK" 'classes*.dex' -d "$RUNNER_TEMP/futon-release-dex"
+          cat "$RUNNER_TEMP"/futon-release-dex/classes*.dex | strings > "$RUNNER_TEMP/futon-release-dex/strings.txt"
+          DEX_STRINGS="$RUNNER_TEMP/futon-release-dex/strings.txt"
 
-      - name: Create Release
+          require_dex_string() {
+            local symbol="$1"
+            if ! grep -Fq "$symbol" "$DEX_STRINGS"; then
+              echo "::error::Optimized APK is missing required Mihon ABI symbol: $symbol"
+              exit 1
+            fi
+          }
+
+          for symbol in \
+            'com/squareup/zstd/ZstdCompressor' \
+            'androidx/preference/PreferenceScreen' \
+            'eu/kanade/tachiyomi/source/ConfigurableSource' \
+            'eu/kanade/tachiyomi/source/Source' \
+            'eu/kanade/tachiyomi/source/model/RefreshContext' \
+            'eu/kanade/tachiyomi/source/online/HttpSource' \
+            'eu/kanade/tachiyomi/source/model/SManga' \
+            'eu/kanade/tachiyomi/source/model/SChapter' \
+            'eu/kanade/tachiyomi/source/model/SMangaUpdate' \
+            'eu/kanade/tachiyomi/source/model/Page' \
+            'getMangaUpdate' \
+            'fetchRelatedMangaList' \
+            'getChapterList' \
+            'getPageList' \
+            'fetchPageList' \
+            'CaptchaAutoResolveCoordinator' \
+            'TachiyomiApkClassLoaderPolicy' \
+            'org/brotli/dec/BrotliInputStream'; do
+            require_dex_string "$symbol"
+          done
+
+      - name: Verify APK identity and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_CODE="${{ steps.version.outputs.version_code }}"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          test -x "$AAPT"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+          BADGING="$($AAPT dump badging "$APK" | head -n 1)"
+          echo "$BADGING"
+          grep -Fq "versionCode='$VERSION_CODE'" <<< "$BADGING"
+          grep -Fq "versionName='$VERSION'" <<< "$BADGING"
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_CODE="${{ steps.version.outputs.version_code }}"
+          OUT="$GITHUB_WORKSPACE/release-artifact"
+          APK_NAME="Futon-$VERSION.apk"
+          mkdir -p "$OUT"
+          cp "$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk" "$OUT/$APK_NAME"
+          cd "$OUT"
+          sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          {
+            echo "Futon $VERSION"
+            echo "Version code: $VERSION_CODE"
+            echo "Source commit: $GITHUB_SHA"
+            echo "Signing: repository-release-key"
+            echo "Build: optimized release (R8 minify + resource shrinking)"
+          } > BUILD-INFO.txt
+
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Futon ${{ steps.version.outputs.version }}
+          body_path: docs/releases/${{ steps.version.outputs.version }}.md
           draft: false
           prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true
           files: |
-            app/build/outputs/apk/release/app-release.apk
+            release-artifact/Futon-${{ steps.version.outputs.version }}.apk
+            release-artifact/Futon-${{ steps.version.outputs.version }}.apk.sha256
+            release-artifact/BUILD-INFO.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify Discord - Release Published
+      - name: Notify Discord - Release published
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BUILD }}
           RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
@@ -177,11 +241,11 @@ jobs:
         if: always()
         run: rm -f keystore.jks
 
-      - name: Notify Discord - Build Failed
+      - name: Notify Discord - Release failed
         if: failure()
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BUILD }}
         run: |
           if [ -z "$WEBHOOK" ]; then exit 0; fi
-          payload=$(jq -n --arg content "Build failed for ${{ github.ref_name }}\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" '{content: $content}')
+          payload=$(jq -n --arg content "Release failed for ${{ github.ref_name }}\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" '{content: $content}')
           curl -s -H "Content-Type: application/json" -d "$payload" "$WEBHOOK" || true

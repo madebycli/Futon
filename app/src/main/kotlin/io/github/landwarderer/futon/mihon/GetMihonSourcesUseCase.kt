@@ -14,7 +14,7 @@ class GetMihonSourcesUseCase @Inject constructor(
     private val extensionManager: MihonExtensionManager,
     private val settings: io.github.landwarderer.futon.core.prefs.AppSettings,
 ) {
-    
+
     fun getSourcesFlow(): Flow<List<MihonSourceItem>> {
         return extensionManager.installedExtensions.map { extensions ->
             val allSources = extensions.flatMap { ext ->
@@ -22,12 +22,12 @@ class GetMihonSourcesUseCase @Inject constructor(
                     Triple(ext, catalogueSource, catalogueSource.name)
                 }
             }
-            
+
             val nameCountMap = allSources.groupBy { it.third }.mapValues { it.value.size }
-            
+
             allSources.map { (ext, catalogueSource, baseName) ->
                 val needsLanguageSuffix = nameCountMap[baseName]?.let { it > 1 } ?: false
-                
+
                 MihonSourceItem(
                     source = MihonMangaSource(
                         catalogueSource = catalogueSource,
@@ -41,16 +41,16 @@ class GetMihonSourcesUseCase @Inject constructor(
             }
         }
     }
-    
+
     fun getSourcesFlowFiltered(userLanguages: Set<String>): Flow<List<MihonSourceItem>> {
         return getSourcesFlow()
     }
-    
+
     fun getSourcesByLanguage(): Map<String, List<MihonMangaSource>> {
         return extensionManager.getSourcesByLanguage().mapValues { (_, sources) ->
             sources.map { catalogueSource ->
-                val ext = extensionManager.installedExtensions.value.find { 
-                    it.sources.contains(catalogueSource) 
+                val ext = extensionManager.installedExtensions.value.find {
+                    it.sources.contains(catalogueSource)
                 }
                 MihonMangaSource(
                     catalogueSource = catalogueSource,
@@ -60,9 +60,9 @@ class GetMihonSourcesUseCase @Inject constructor(
             }
         }
     }
-    
+
     fun hasExtensions(): Boolean = extensionManager.hasExtensions()
-    
+
     fun isLoading(): Flow<Boolean> = extensionManager.isLoading
 }
 
@@ -72,27 +72,26 @@ data class MihonSourceItem(
     val versionName: String,
     val hasLanguageSuffix: Boolean = false,
 ) {
-    val displayName: String get() {
-        return if (hasLanguageSuffix) {
+    val displayName: String
+        get() = if (hasLanguageSuffix) {
             "${source.displayName} (${getLanguageDisplayName(language)})"
         } else {
             source.displayName
         }
-    }
-    
+
     val language: String get() = source.language
     val isNsfw: Boolean get() = source.isNsfw
     val sourceId: Long get() = source.sourceId
-    
+
     companion object {
         private fun getLanguageDisplayName(langCode: String): String {
             return when (langCode.lowercase()) {
-                "zh" -> "ä¸­æ–‡"
-                "zh-hans" -> "ç®€ä½“ä¸­æ–‡"
-                "zh-hant" -> "ç¹é«”ä¸­æ–‡"
+                "zh" -> "中文"
+                "zh-hans" -> "简体中文"
+                "zh-hant" -> "繁體中文"
                 "en" -> "English"
-                "ja" -> "æ—¥æœ¬èªž"
-                "ko" -> "í•œêµ­ì–´"
+                "ja" -> "日本語"
+                "ko" -> "한국어"
                 "all" -> "Multi"
                 else -> langCode.uppercase()
             }

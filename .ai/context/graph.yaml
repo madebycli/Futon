@@ -1,0 +1,199 @@
+schema_version: 1
+project: Futon-Mihon-Compatibility
+updated_at: 2026-09-01
+update_policy:
+  mandatory: true
+  evidence_priority:
+    - on_device_runtime
+    - current_upstream_source
+    - focused_tests_and_full_apk
+    - documentation
+    - inference
+
+nodes:
+  FUTON_REPO:
+    type: repository
+    value: madebycli/Futon
+
+  FUTON_FIX_BRANCH:
+    type: branch
+    value: fix/mihon-uncaught-exception-interceptor
+    release_prep_source_head: 9b50dbd18a6e75cd9726511ec09158711fa785dd
+    device_tested_source_head: 78d128189277167cd2f0c84979c9f94139b9ff05
+    device_tested_tree: 2848e13c2b26566137a4a252a6f5c418fee8d012
+
+  PR_1:
+    type: pull_request
+    value: 1
+    base: devel
+    base_sha: 05f11b2e6d46993677eec4e7eb66fde2c76e5a4b
+    state: open
+    merged: false
+    merge_allowed_without_user: false
+
+  DEVICE_VALIDATION_78D:
+    type: device_evidence
+    status: passed
+    reported_at: 2026-09-01
+    user_report: "alles geht"
+    source_head: 78d128189277167cd2f0c84979c9f94139b9ff05
+    tree: 2848e13c2b26566137a4a252a6f5c418fee8d012
+    signing_kind: repository-release-key
+    supersedes: POST_78D_REPOSITORY_KEY_DEVICE_VALIDATION
+
+  FINAL_TEST_CI_78D:
+    type: ci_validation
+    status: success
+    run_id: 33536918663
+    run_number: 295
+    focused_tests: 49_of_49_success
+    release_lint: success
+    optimized_r8_release: success
+    optimized_abi_gate: success
+    signature_verification: success
+    artifact_id: 9812861083
+    artifact_digest: sha256:e174ceb153e80c28ee70b9a883a174a12a074c76513c2d066c5b3c65eac9e367
+    apk_sha256: 4f0bdca5bc1bf29f37663485275dacedc25adf36d20ee58fb10cfe4cf1b6b745
+    signing_kind: repository-release-key
+
+  RELEASE_9_8_3:
+    type: release_candidate
+    status: prepared_not_published
+    version_name: 9.8.3
+    version_code: 90803
+    future_tag: v9.8.3
+    release_prep_commit: 9b50dbd18a6e75cd9726511ec09158711fa785dd
+    reason: "The validated repository-key APK already uses versionCode 90803; v9.8.2 would derive 90802 and create an Android downgrade relative to the tested build."
+    release_notes: docs/releases/9.8.3.md
+    changelog_updated: true
+    tag_created: false
+    github_release_published: false
+
+  RELEASE_WORKFLOW:
+    type: release_gate
+    path: .github/workflows/release.yml
+    trigger: v_tag
+    gates:
+      - tag_matches_gradle_release_identity
+      - repository_release_signing_secrets_present
+      - focused_mihon_regression_tests
+      - release_lint_hard_gate
+      - optimized_r8_release_build
+      - optimized_mihon_runtime_abi_gate
+      - apk_version_identity_check
+      - apk_signature_verification
+      - sha256_generation
+    release_files:
+      - Futon-9.8.3.apk
+      - Futon-9.8.3.apk.sha256
+      - BUILD-INFO.txt
+
+  RELEASE_PREP_CI:
+    type: ci_validation
+    source_head: 9b50dbd18a6e75cd9726511ec09158711fa785dd
+    run_id: 33545883702
+    run_number: 297
+    status: in_progress_at_context_write
+    note: "Fetch live status before marking release preparation fully green."
+
+  FIX_DEFAULT_CLIENT:
+    type: fix
+    status: resolved
+
+  FIX_BROTLI_ZSTD_RUNTIME:
+    type: fix
+    status: resolved
+
+  FIX_SOURCE_HTTP_ABI:
+    type: fix
+    status: resolved
+    includes:
+      - modern_suspend_source_api
+      - legacy_rx_fetch_compatibility
+      - SManga_memo
+      - SChapter_memo
+      - SMangaUpdate
+      - getMangaUpdate
+      - request_source_context
+
+  FIX_API26:
+    type: fix
+    status: resolved
+    min_sdk: 26
+
+  FIX_CLASSLOADER_POLICY:
+    type: fix
+    status: resolved
+    strategy: parent_owned_host_abi_with_child_first_generated_bridges
+
+  FIX_SHARED_CHAPTER_SNAPSHOT:
+    type: fix
+    status: resolved
+    scope: repository_instance_changes
+
+  FIX_DURABLE_SNAPSHOT_PERSISTENCE:
+    type: fix
+    status: resolved
+    scope: app_process_restart
+    file: mihon-model-snapshots-v1.json
+    manga_limit: 500
+    chapter_limit: 1000
+
+  FIX_RESTORE_FIELD_FIDELITY:
+    type: fix
+    status: resolved
+    commit: 809a8900f9f662b516b61eb7443cbf6c78021e6a
+
+  KOTOTORO_REFERENCE:
+    type: reference_repository
+    repository: Kototoro-app/Kototoro
+    branch: devel
+    live_verified_sha: b2c20e84298bfcc806567d784c8cb6607b1c919f
+
+  KEIYOUSHI_REFERENCE:
+    type: reference_repository
+    repository: keiyoushi/extensions-lib
+    branch: main
+    live_verified_sha: 42255ee5fa96d9425697b7c143587483207308d1
+    api_line: 1.6
+
+  KOTOTORO_CLOUDFLARE_PARITY:
+    type: unverified_parity_delta
+    status: not_current_root_cause
+
+  SAFETY_CONSTRAINTS:
+    type: constraints
+    values:
+      - do_not_merge_without_explicit_user_request
+      - do_not_modify_devel_directly_without_explicit_user_request
+      - do_not_expose_signing_secrets
+      - do_not_publish_release_without_explicit_user_request
+
+edges:
+  - from: DEVICE_VALIDATION_78D
+    relation: validates
+    to: FUTON_FIX_BRANCH
+  - from: FINAL_TEST_CI_78D
+    relation: validates
+    to: DEVICE_VALIDATION_78D
+  - from: RELEASE_9_8_3
+    relation: prepared_on
+    to: FUTON_FIX_BRANCH
+  - from: RELEASE_WORKFLOW
+    relation: gates
+    to: RELEASE_9_8_3
+  - from: RELEASE_PREP_CI
+    relation: validates
+    to: RELEASE_9_8_3
+  - from: FUTON_FIX_BRANCH
+    relation: represented_by
+    to: PR_1
+  - from: FIX_SOURCE_HTTP_ABI
+    relation: compared_against
+    to: KEIYOUSHI_REFERENCE
+  - from: FIX_CLASSLOADER_POLICY
+    relation: informed_by
+    to: KOTOTORO_REFERENCE
+  - from: SAFETY_CONSTRAINTS
+    relation: governs
+    to: PR_1

@@ -9,10 +9,12 @@ import androidx.core.view.MenuProvider
 import androidx.fragment.app.viewModels
 import com.google.android.material.snackbar.Snackbar
 import dagger.hilt.android.AndroidEntryPoint
+import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.drop
 import io.github.landwarderer.futon.R
 import io.github.landwarderer.futon.core.model.getTitle
+import io.github.landwarderer.futon.core.nav.AppRouter
 import io.github.landwarderer.futon.core.nav.router
 import io.github.landwarderer.futon.core.ui.list.ListSelectionController
 import io.github.landwarderer.futon.core.ui.util.MenuInvalidator
@@ -25,11 +27,17 @@ import io.github.landwarderer.futon.core.util.ext.withArgs
 import io.github.landwarderer.futon.databinding.FragmentListBinding
 import io.github.landwarderer.futon.filter.ui.FilterCoordinator
 import io.github.landwarderer.futon.list.ui.MangaListFragment
+import io.github.landwarderer.futon.mihon.MihonExtensionManager
+import io.github.landwarderer.futon.mihon.parsers.network.UserAgents
 import org.koitharu.kotatsu.parsers.model.MangaSource
 import io.github.landwarderer.futon.search.domain.SearchKind
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.OnClickListener {
+
+    @Inject
+    lateinit var mihonExtensionManager: MihonExtensionManager
 
     override val viewModel by viewModels<RemoteListViewModel>()
 
@@ -98,9 +106,41 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
                 title = viewModel.source.getTitle(requireContext()),
             )
         } else {
-            Snackbar.make(requireViewBinding().recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT)
-                .show()
+            showOperationNotSupported()
         }
+    }
+
+    /**
+     * Manual escape hatch for Mihon sources when Cloudflare cannot be solved automatically.
+     * BrowserActivity uses the same application cookie store as the Mihon OkHttp client. Passing
+     * Mihon's exact default User-Agent keeps cf_clearance bound to the same browser identity.
+     */
+    private fun openMihonCloudflareWebView() {
+        val url = currentMihonHomeUrl() ?: run {
+            showOperationNotSupported()
+            return
+        }
+        startActivity(
+            AppRouter.browserIntent(
+                context = requireContext(),
+                url = url,
+                source = viewModel.source,
+                title = viewModel.source.getTitle(requireContext()),
+            ).putExtra(AppRouter.KEY_USER_AGENT, UserAgents.CHROME_MOBILE),
+        )
+    }
+
+    private fun currentMihonHomeUrl(): String? {
+        val sourceName = viewModel.source.name
+        if (!sourceName.startsWith(MIHON_SOURCE_PREFIX)) return null
+        val source = mihonExtensionManager.getMihonMangaSourceByName(sourceName)?.catalogueSource as? HttpSource
+            ?: return null
+        return source.getHomeUrl().takeIf { it.isHttpUrl() }
+    }
+
+    private fun showOperationNotSupported() {
+        Snackbar.make(requireViewBinding().recyclerView, R.string.operation_not_supported, Snackbar.LENGTH_SHORT)
+            .show()
     }
 
     private fun showSourceBrokenWarning() {
@@ -122,6 +162,11 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
         override fun onMenuItemSelected(menuItem: MenuItem): Boolean = when (menuItem.itemId) {
             R.id.action_source_settings -> {
                 router.openSourceSettings(viewModel.source)
+                true
+            }
+
+            R.id.action_solve_cloudflare_webview -> {
+                openMihonCloudflareWebView()
                 true
             }
 
@@ -147,12 +192,14 @@ class RemoteListFragment : MangaListFragment(), FilterCoordinator.Owner, View.On
             super.onPrepareMenu(menu)
             menu.findItem(R.id.action_random)?.isEnabled = !viewModel.isRandomLoading.value
             menu.findItem(R.id.action_filter_reset)?.isVisible = filterCoordinator.isFilterApplied
+            menu.findItem(R.id.action_solve_cloudflare_webview)?.isVisible = currentMihonHomeUrl() != null
         }
     }
 
     companion object {
 
         const val ARG_SOURCE = "provider"
+        private const val MIHON_SOURCE_PREFIX = "MIHON_"
 
         fun newInstance(source: MangaSource) = RemoteListFragment().withArgs(1) {
             putString(ARG_SOURCE, source.name)

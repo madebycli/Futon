@@ -157,18 +157,18 @@ class ExtensionRepoServiceTest {
         assertTrue(hentaifox.isNsfw)
         assertTrue(hentaifox.isCompatible)
 
-        // Check 2.0 version parsing ("2.0.1" -> libVersion 2.0)
+        // Check 2.0 version parsing and rejection above the supported Mihon max (1.9)
         val asurascans = result.first { it.pkgName == "eu.kanade.tachiyomi.extension.en.asurascans" }
         assertEquals("Asura Scans", asurascans.name)
         assertEquals(2.0, asurascans.libVersion, 0.001)
-        assertTrue(asurascans.isCompatible)
+        assertFalse(asurascans.isCompatible)
 
         // Check too old version (1.0 < LIB_VERSION_MIN 1.2)
         val oldExt = result.first { it.pkgName == "eu.kanade.tachiyomi.extension.all.oldext" }
         assertEquals(1.0, oldExt.libVersion, 0.001)
         assertFalse(oldExt.isCompatible)
 
-        // Check too new version (3.0 > LIB_VERSION_MAX 2.5)
+        // Check too new version (3.0 > LIB_VERSION_MAX 1.9)
         val futureExt = result.first { it.pkgName == "eu.kanade.tachiyomi.extension.all.futureext" }
         assertEquals(3.0, futureExt.libVersion, 0.001)
         assertFalse(futureExt.isCompatible)
@@ -283,9 +283,9 @@ class ExtensionRepoServiceTest {
         val base = service.baseUrlFromIndexUrl(normalized!!)
         assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo", base)
 
-        // Test GitHub raw URL normalization
+        // Test GitHub raw URL normalization while preserving the protobuf store index.
         val ghRaw = service.normalizeIndexUrl("https://github.com/keiyoushi/extensions/raw/repo/index.pb")
-        assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json", ghRaw)
+        assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.pb", ghRaw)
 
         val ghTree = service.normalizeIndexUrl("https://github.com/keiyoushi/extensions/tree/repo")
         assertEquals("https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json", ghTree)

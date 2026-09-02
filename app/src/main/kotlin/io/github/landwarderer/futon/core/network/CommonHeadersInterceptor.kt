@@ -7,6 +7,7 @@ import io.github.landwarderer.futon.core.parser.MangaRepository
 import io.github.landwarderer.futon.core.parser.ParserMangaRepository
 import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import okhttp3.Headers
+import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.Interceptor.Chain
 import okhttp3.Request
@@ -27,7 +28,7 @@ class CommonHeadersInterceptor @Inject constructor(
 ) : Interceptor {
 
 	override fun intercept(chain: Chain): Response {
-		val request = chain.request()
+		val request = canonicalizeLegacyGitHubRawRequest(chain.request())
 		val source = request.tag(MangaSource::class.java)
 			?: request.headers[CommonHeaders.MANGA_SOURCE]?.let { MangaSource(it) }
 		val repository = if (source is MangaParserSource) {
@@ -75,4 +76,22 @@ class CommonHeadersInterceptor @Inject constructor(
 
 		override fun request(): Request = request
 	}
+}
+
+/**
+ * `raw.github.com` was used by Futon's historical KEIYOUSHI mirror option but is no longer a
+ * valid raw-content endpoint. Keep old saved preferences and generated URLs working by
+ * canonicalizing them at the shared HTTP boundary. This intentionally preserves path/query data.
+ */
+internal fun canonicalizeLegacyGitHubRawUrl(url: HttpUrl): HttpUrl {
+	if (url.host != "raw.github.com") return url
+	return url.newBuilder()
+		.host("raw.githubusercontent.com")
+		.build()
+}
+
+internal fun canonicalizeLegacyGitHubRawRequest(request: Request): Request {
+	val canonicalUrl = canonicalizeLegacyGitHubRawUrl(request.url)
+	if (canonicalUrl == request.url) return request
+	return request.newBuilder().url(canonicalUrl).build()
 }

@@ -60,7 +60,7 @@
 		<SwitchPreferenceCompat
 			android:defaultValue="false"
 			android:key="download_only_on_charging"
-            android:summary="@string/download_only_on_charging_summary"
+			android:summary="@string/download_only_on_charging_summary"
 			android:title="@string/downloads_charging_only" />
 
 		<SwitchPreferenceCompat
@@ -79,15 +79,23 @@
 			android:defaultValue="00:00"
 			android:dependency="download_off_peak_enabled"
 			android:key="download_off_peak_start"
-            android:summary="@string/download_off_peak_start_description"
+			android:summary="@string/download_off_peak_start_description"
 			android:title="@string/download_off_peak_start" />
 
 		<io.github.landwarderer.futon.settings.utils.TimePreference
 			android:defaultValue="06:00"
 			android:dependency="download_off_peak_enabled"
 			android:key="download_off_peak_end"
-            android:summary="@string/download_off_peak_end_description"
+			android:summary="@string/download_off_peak_end_description"
 			android:title="@string/download_off_peak_end" />
+
+		<EditTextPreference
+			android:defaultValue="1600"
+			android:inputType="number"
+			android:key="download_request_delay"
+			android:summary="Delay in milliseconds between requests to the same source. Set 0 to disable."
+			android:title="Download request delay"
+			app:useSimpleSummaryProvider="true" />
 
 		<EditTextPreference
 			android:defaultValue="0"

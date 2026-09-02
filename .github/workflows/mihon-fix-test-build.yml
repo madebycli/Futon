@@ -1,0 +1,234 @@
+name: Mihon Fix Signed Test Build
+
+on:
+  push:
+    branches:
+      - fix/mihon-uncaught-exception-interceptor
+  pull_request:
+    branches:
+      - devel
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mihon-fix-signed-test-build-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Mihon compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Run Mihon regression tests
+        run: |
+          set -euo pipefail
+          # Current Mihon and Keiyoushi both require API 26. Keeping the host below that level
+          # re-enables D8 interface desugaring and breaks serializers loaded later from extension APKs.
+          grep -Eq '^[[:space:]]*minSdk = 26$' app/build.gradle
+          ./gradlew testDebugUnitTest \
+            --tests "io.github.landwarderer.futon.mihon.ExtensionRepoServiceTest" \
+            --tests "io.github.landwarderer.futon.mihon.TachiyomiApkClassLoaderPolicyTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonNetworkHelperTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonSourceApiCompatTest" \
+            --tests "io.github.landwarderer.futon.mihon.compat.MihonModernHostContractTest" \
+            --tests "io.github.landwarderer.futon.mihon.MihonMangaRepositoryTest" \
+            --tests "io.github.landwarderer.futon.mihon.state.MihonSnapshotPersistenceTest" \
+            --tests "io.github.landwarderer.futon.mihon.model.MihonDataConvertersTest" \
+            --tests "io.github.landwarderer.futon.core.network.GitHubRawUrlCompatTest" \
+            --stacktrace \
+            --no-build-cache \
+            --no-configuration-cache
+
+      - name: Run release lint (diagnostic)
+        id: release_lint
+        continue-on-error: true
+        run: >-
+          ./gradlew lintRelease
+          --stacktrace
+          --no-build-cache
+          --no-configuration-cache
+
+      - name: Upload release lint diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Futon-Mihon-Fix-Lint-Report
+          path: |
+            app/build/reports/lint-results-release.*
+            app/build/intermediates/lint_intermediate_text_report/release/**/lint-results-release.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  signed-release:
+    name: Build signed optimized test APK
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare signing key
+        env:
+          REPO_KEYSTORE_B64: ${{ secrets.KEYSTORE_FILE }}
+          REPO_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          REPO_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          REPO_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$GITHUB_WORKSPACE/keystore.jks"
+          if [ -n "$REPO_KEYSTORE_B64" ] && \
+             [ -n "$REPO_KEYSTORE_PASSWORD" ] && \
+             [ -n "$REPO_KEY_ALIAS" ] && \
+             [ -n "$REPO_KEY_PASSWORD" ]; then
+            printf '%s' "$REPO_KEYSTORE_B64" | base64 -d > "$KEYSTORE"
+            test -s "$KEYSTORE"
+            echo "::add-mask::$REPO_KEYSTORE_PASSWORD"
+            echo "::add-mask::$REPO_KEY_ALIAS"
+            echo "::add-mask::$REPO_KEY_PASSWORD"
+            echo "KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$REPO_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$REPO_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$REPO_KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "SIGNING_KIND=repository-release-key" >> "$GITHUB_ENV"
+            echo "Using repository release signing key."
+          else
+            TEMP_PASSWORD="$(openssl rand -hex 32)"
+            TEMP_ALIAS="futon-mihon-test"
+            echo "::add-mask::$TEMP_PASSWORD"
+            keytool -genkeypair \
+              -keystore "$KEYSTORE" \
+              -storepass "$TEMP_PASSWORD" \
+              -keypass "$TEMP_PASSWORD" \
+              -alias "$TEMP_ALIAS" \
+              -keyalg RSA \
+              -keysize 4096 \
+              -validity 30 \
+              -dname "CN=Futon Mihon Temporary Test,O=Futon Test,C=DE" \
+              -noprompt
+            test -s "$KEYSTORE"
+            echo "KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+            echo "KEYSTORE_PASSWORD=$TEMP_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$TEMP_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$TEMP_PASSWORD" >> "$GITHUB_ENV"
+            echo "SIGNING_KIND=temporary-test-key" >> "$GITHUB_ENV"
+            echo "Repository release signing secrets are unavailable; using a 30-day temporary test key."
+          fi
+
+      - name: Build signed optimized release APK
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: >-
+          ./gradlew assembleRelease
+          -PversionName=9.8.1-mihon-fix-test
+          -PversionCode=90803
+          --stacktrace
+          --no-build-cache
+          --no-configuration-cache
+
+      - name: Verify optimized Mihon runtime ABI
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          rm -rf "$RUNNER_TEMP/futon-dex"
+          mkdir -p "$RUNNER_TEMP/futon-dex"
+          unzip -q "$APK" 'classes*.dex' -d "$RUNNER_TEMP/futon-dex"
+          cat "$RUNNER_TEMP"/futon-dex/classes*.dex | strings > "$RUNNER_TEMP/futon-dex/strings.txt"
+          DEX_STRINGS="$RUNNER_TEMP/futon-dex/strings.txt"
+
+          require_dex_string() {
+            local symbol="$1"
+            if ! grep -Fq "$symbol" "$DEX_STRINGS"; then
+              echo "::error::Optimized APK is missing required Mihon ABI symbol: $symbol"
+              exit 1
+            fi
+          }
+
+          # zstd-kmp resolves ZstdCompressor from JNI FindClass. A source-level reference is not enough:
+          # the exact class must survive R8 in the optimized APK.
+          require_dex_string 'com/squareup/zstd/ZstdCompressor'
+
+          # ConfigurableSource preference UI is invoked by dynamically loaded extension APKs.
+          require_dex_string 'androidx/preference/PreferenceScreen'
+          require_dex_string 'eu/kanade/tachiyomi/source/ConfigurableSource'
+
+          # External extension APKs call the host ABI outside R8's static graph. Gate the optimized
+          # artifact itself so source/unit-test compatibility cannot hide a release-only shrinker break.
+          for symbol in \
+            'eu/kanade/tachiyomi/source/Source' \
+            'eu/kanade/tachiyomi/source/model/RefreshContext' \
+            'eu/kanade/tachiyomi/source/online/HttpSource' \
+            'eu/kanade/tachiyomi/source/model/SManga' \
+            'eu/kanade/tachiyomi/source/model/SChapter' \
+            'eu/kanade/tachiyomi/source/model/Page' \
+            'getMangaUpdate' \
+            'fetchRelatedMangaList' \
+            'getChapterList' \
+            'getPageList' \
+            'fetchPageList'; do
+            require_dex_string "$symbol"
+          done
+
+      - name: Verify APK signature
+        run: |
+          set -euo pipefail
+          APK="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Prepare test artifact
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/test-artifact"
+          APK_NAME="Futon-9.8.1-mihon-fix-test-signed-release.apk"
+          cp "$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk" \
+             "$GITHUB_WORKSPACE/test-artifact/$APK_NAME"
+          cd "$GITHUB_WORKSPACE/test-artifact"
+          sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          {
+            echo "Build: optimized release (R8 minify + resource shrinking)"
+            echo "Version: 9.8.1-mihon-fix-test (90803)"
+            echo "Source commit: $GITHUB_SHA"
+            echo "Signing: $SIGNING_KIND"
+            if [ "$SIGNING_KIND" = "temporary-test-key" ]; then
+              echo "Install note: this temporary signature cannot update an APK signed with a different key."
+            fi
+          } > BUILD-INFO.txt
+
+      - name: Upload signed test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Futon-Mihon-Fix-Signed-Release
+          path: test-artifact/*
+          if-no-files-found: error
+          retention-days: 14

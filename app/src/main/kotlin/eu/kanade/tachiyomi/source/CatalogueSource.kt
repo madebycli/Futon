@@ -1,83 +1,56 @@
+// Adapted from Kototoro's Tachiyomi ABI host surface at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package eu.kanade.tachiyomi.source
 
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
+import eu.kanade.tachiyomi.source.model.SManga
 import rx.Observable
 
-/**
- * Mihon-compatible CatalogueSource interface.
- * A source that supports browsing and searching.
- */
+/** Mihon-compatible catalogue source interface. */
 interface CatalogueSource : Source {
 
-    /**
-     * An ISO 639-1 compliant language code (two letters in lower case).
-     */
+    /** Keiyoushi/TachiyomiX v1.6 related-manga contract. */
+    val supportsRelatedMangas: Boolean
+        get() = false
+
+    val disableRelatedMangasBySearch: Boolean
+        get() = false
+
+    val disableRelatedMangas: Boolean
+        get() = false
+
+    suspend fun fetchRelatedMangaList(manga: SManga): List<SManga> = emptyList()
+
     override val lang: String
+    override val supportsLatest: Boolean
 
-    /**
-     * Whether the source has support for latest updates.
-     */
-    val supportsLatest: Boolean
-
-    /**
-     * Get a page with a list of manga.
-     *
-     * @since extensions-lib 1.5
-     * @param page the page number to retrieve.
-     */
     @Suppress("DEPRECATION")
-    suspend fun getPopularManga(page: Int): MangasPage {
+    override suspend fun getPopularManga(page: Int): MangasPage {
         return fetchPopularManga(page).toBlocking().first()
     }
 
-    /**
-     * Get a page with a list of manga.
-     *
-     * @since extensions-lib 1.5
-     * @param page the page number to retrieve.
-     * @param query the search query.
-     * @param filters the list of filters to apply.
-     */
     @Suppress("DEPRECATION")
-    suspend fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage {
+    override suspend fun getSearchManga(page: Int, query: String, filters: FilterList): MangasPage {
         return fetchSearchManga(page, query, filters).toBlocking().first()
     }
 
-    /**
-     * Get a page with a list of latest manga updates.
-     *
-     * @since extensions-lib 1.5
-     * @param page the page number to retrieve.
-     */
     @Suppress("DEPRECATION")
-    suspend fun getLatestUpdates(page: Int): MangasPage {
+    override suspend fun getLatestUpdates(page: Int): MangasPage {
         return fetchLatestUpdates(page).toBlocking().first()
     }
 
-    /**
-     * Returns the list of filters for the source.
-     */
-    fun getFilterList(): FilterList
+    override fun getFilterList(): FilterList
 
-    @Deprecated(
-        "Use the non-RxJava API instead",
-        ReplaceWith("getPopularManga"),
-    )
+    @Deprecated("Use the non-RxJava API instead", ReplaceWith("getPopularManga"))
     fun fetchPopularManga(page: Int): Observable<MangasPage> =
         throw IllegalStateException("Not used")
 
-    @Deprecated(
-        "Use the non-RxJava API instead",
-        ReplaceWith("getSearchManga"),
-    )
+    @Deprecated("Use the non-RxJava API instead", ReplaceWith("getSearchManga"))
     fun fetchSearchManga(page: Int, query: String, filters: FilterList): Observable<MangasPage> =
         throw IllegalStateException("Not used")
 
-    @Deprecated(
-        "Use the non-RxJava API instead",
-        ReplaceWith("getLatestUpdates"),
-    )
+    @Deprecated("Use the non-RxJava API instead", ReplaceWith("getLatestUpdates"))
     fun fetchLatestUpdates(page: Int): Observable<MangasPage> =
         throw IllegalStateException("Not used")
 }

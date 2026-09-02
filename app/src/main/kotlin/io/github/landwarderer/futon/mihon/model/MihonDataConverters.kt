@@ -1,8 +1,11 @@
+// Mihon chapter ABI conversion logic adapted from Kototoro at f4f37a5b7290da05c10b9325912f2a37ebeff0f9.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.mihon.model
 
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.toFloatOrNullCompat
 import eu.kanade.tachiyomi.source.online.HttpSource
 import io.github.landwarderer.futon.mihon.parsers.model.Content
 import io.github.landwarderer.futon.mihon.parsers.model.ContentChapter
@@ -22,46 +25,99 @@ fun SManga.toDomainContent(
 ): Content {
     // Get baseUrl from source if available to resolve relative URLs
     val baseUrl = (source.catalogueSource as? HttpSource)?.baseUrl ?: ""
-    
-    val safeUrl = try { url } catch (e: UninitializedPropertyAccessException) { "" }
-    val safeThumbnail = try { thumbnail_url } catch (e: UninitializedPropertyAccessException) { null }
+
+    val safeUrl = try { url } catch (_: UninitializedPropertyAccessException) { "" }
+    val safeThumbnail = try { thumbnail_url } catch (_: UninitializedPropertyAccessException) { null }
     val absoluteThumbnailUrl = resolveUrl(baseUrl, safeThumbnail)
     val absolutePublicUrl = resolveUrl(baseUrl, safeUrl) ?: safeUrl
-    
-    // Safely access lateinit properties
-    val safeTitle = try { title } catch (e: UninitializedPropertyAccessException) { null }
-    val safeGenres = try { getGenres() } catch (e: UninitializedPropertyAccessException) { null }
-    val safeAuthor = try { author } catch (e: UninitializedPropertyAccessException) { null }
-    val safeArtist = try { artist } catch (e: UninitializedPropertyAccessException) { null }
-    val safeDescription = try { description } catch (e: UninitializedPropertyAccessException) { null }
-    val safeStatus = try { status } catch (e: UninitializedPropertyAccessException) { SManga.UNKNOWN }
-    
-    android.util.Log.i("MihonDataConverters", "toDomainContent: title='$safeTitle' url='$safeUrl' -> absoluteThumbnail='$absoluteThumbnailUrl'")
-    
+
+    // Safely access lateinit and fork/modern compatibility properties. Futon's host ABI is a
+    // deliberate superset of upstream Mihon's source-api so extensions compiled against Mihon,
+    // Keiyoushi, TachiyomiX or Kototoro do not lose metadata while crossing the app domain model.
+    val safeTitle = try { title } catch (_: UninitializedPropertyAccessException) { null }
+    val safeGenres: List<String>? = try {
+        genres
+    } catch (_: UninitializedPropertyAccessException) {
+        null
+    } catch (_: AbstractMethodError) {
+        null
+    } catch (_: NoSuchMethodError) {
+        null
+    }
+    val safeAuthor = try { author } catch (_: UninitializedPropertyAccessException) { null }
+    val safeArtist = try { artist } catch (_: UninitializedPropertyAccessException) { null }
+    val safeDescription = try { description } catch (_: UninitializedPropertyAccessException) { null }
+    val safeStatus = try { status } catch (_: UninitializedPropertyAccessException) { SManga.UNKNOWN }
+    val safeAltTitles = try {
+        altTitles.toSet()
+    } catch (_: AbstractMethodError) {
+        emptySet()
+    } catch (_: NoSuchMethodError) {
+        emptySet()
+    }
+    val safeBanner = try {
+        banner?.let { resolveUrl(baseUrl, it) }
+    } catch (_: AbstractMethodError) {
+        null
+    } catch (_: NoSuchMethodError) {
+        null
+    }
+    val calculatedRating = try {
+        val safeScore = score
+        when {
+            safeScore == null || safeScore <= 0 -> 0f
+            safeScore <= 10 -> safeScore / 10f
+            safeScore <= 100 -> safeScore / 100f
+            else -> 0f
+        }
+    } catch (_: AbstractMethodError) {
+        0f
+    } catch (_: NoSuchMethodError) {
+        0f
+    }
+
     return Content(
         id = generateContentId(safeUrl, source.name),
         title = safeTitle ?: "Unknown",
-        altTitles = emptySet(),
+        altTitles = safeAltTitles,
         url = safeUrl,
         Url = publicUrl.ifBlank { absolutePublicUrl },
-        rating = 0.0f,
+        rating = calculatedRating,
         contentRating = run<ContentRating?> {
-            val safeTags = setOf("safe", "all ages", "non-h", "sfw", "非h", "正常向", "全年龄", "全年龄向")
-            val isExplicitlySafe = safeGenres?.any { it.lowercase() in safeTags } == true
-            
-            val adultGenres = setOf("adult", "hentai", "18+", "nsfw", "mature", "ecchi")
-            val isContentNsfw = (!isExplicitlySafe && source.isNsfw) || safeGenres?.any { it.lowercase() in adultGenres } == true
-            
-            if (isExplicitlySafe) {
-                ContentRating.SAFE
-            } else if (isContentNsfw) {
-                ContentRating.ADULT
-            } else {
+            val explicitRating = try {
+                when (contentRating) {
+                    SManga.ContentRating.SAFE -> ContentRating.SAFE
+                    SManga.ContentRating.SUGGESTIVE -> ContentRating.SUGGESTIVE
+                    SManga.ContentRating.ADULT -> ContentRating.ADULT
+                }
+            } catch (_: AbstractMethodError) {
                 null
+            } catch (_: NoSuchMethodError) {
+                null
+            }
+
+            if (source.isNsfw) {
+                ContentRating.ADULT
+            } else if (explicitRating != null) {
+                explicitRating
+            } else {
+                val safeTags = setOf("safe", "all ages", "non-h", "sfw", "非h", "正常向", "全年龄", "全年龄向")
+                val isExplicitlySafe = safeGenres?.any { it.lowercase() in safeTags } == true
+
+                val adultGenres = setOf("adult", "hentai", "18+", "nsfw", "mature", "ecchi")
+                val isContentNsfw = safeGenres?.any { it.lowercase() in adultGenres } == true
+
+                if (isExplicitlySafe) {
+                    ContentRating.SAFE
+                } else if (isContentNsfw) {
+                    ContentRating.ADULT
+                } else {
+                    null
+                }
             }
         },
         coverUrl = absoluteThumbnailUrl,
-        largeCoverUrl = absoluteThumbnailUrl, // Also set largeCoverUrl for details page
+        largeCoverUrl = safeBanner ?: absoluteThumbnailUrl,
         tags = safeGenres?.map { genreName: String ->
             ContentTag(
                 title = genreName,
@@ -96,9 +152,9 @@ fun Content.toMihonManga(): SManga {
     val baseUrl = (source as? MihonMangaSource)?.let { mihonSource ->
         (mihonSource.catalogueSource as? HttpSource)?.baseUrl ?: ""
     } ?: ""
-    
+
     var cleanUrl = url
-    
+
     // Check if URL has duplicate protocol/baseUrl (e.g., "https://domain.comhttps//domain.com/path")
     // Look for embedded "http" that's not at the start
     val httpIndex = cleanUrl.indexOf("http", startIndex = 1)
@@ -107,10 +163,10 @@ fun Content.toMihonManga(): SManga {
         cleanUrl = cleanUrl.substring(httpIndex)
         android.util.Log.w("MihonDataConverters", "Detected duplicate baseUrl, extracting: '$url' -> '$cleanUrl'")
     }
-    
+
     // Fix malformed protocols (https// -> https://)
     cleanUrl = cleanUrl.replace(Regex("^(https?)/+"), "$1://")
-    
+
     // If URL is absolute and starts with baseUrl, strip it to avoid duplicates in HttpSource
     if (baseUrl.isNotBlank()) {
         val baseHost = baseUrl.trimEnd('/')
@@ -122,19 +178,17 @@ fun Content.toMihonManga(): SManga {
             }
         }
     }
-    
+
     // If URL still doesn't look absolute, log warning
     if (!cleanUrl.matches(Regex("^https?://.*")) && !cleanUrl.startsWith("/")) {
         android.util.Log.w("MihonDataConverters", "URL may be invalid after cleanup: '$cleanUrl' (original: '$url')")
     }
-    
+
     // NOTE: Do NOT add a leading slash to non-absolute URLs.
     // Some extensions (e.g., zaimanhua) use pure IDs like "84652" which are then
     // internally combined with their API path. Adding a slash would cause
     // double-slash issues like "detail//84652" instead of "detail/84652".
-    
-    android.util.Log.d("MihonDataConverters", "toMihonManga: original='$url' cleaned='$cleanUrl'")
-    
+
     return SManga.create().apply {
         this.url = cleanUrl
         this.title = this@toMihonManga.title
@@ -153,29 +207,71 @@ fun Content.toMihonManga(): SManga {
         }
         this.thumbnail_url = this@toMihonManga.coverUrl
         this.initialized = true
+        try {
+            this.genres = this@toMihonManga.tags.map { it.title }
+            this.altTitles = this@toMihonManga.altTitles.toList()
+            this.banner = this@toMihonManga.largeCoverUrl
+            this.contentRating = when (this@toMihonManga.contentRating) {
+                ContentRating.SAFE -> SManga.ContentRating.SAFE
+                ContentRating.SUGGESTIVE -> SManga.ContentRating.SUGGESTIVE
+                ContentRating.ADULT -> SManga.ContentRating.ADULT
+                null -> SManga.ContentRating.SAFE
+            }
+        } catch (_: AbstractMethodError) {
+            // Compatibility fallback for older dynamically loaded implementations.
+        } catch (_: NoSuchMethodError) {
+            // Compatibility fallback for older dynamically loaded implementations.
+        }
     }
 }
 
 // ============ SChapter <-> ContentChapter ============
 
 /**
+ * Resolve chapter identity from extension metadata before using host list position.
+ *
+ * Modern extensions may populate only SChapter.number, older ones populate chapter_number.
+ * The repository-provided list index is only a last-resort fallback when neither ABI field
+ * provides a usable number.
+ */
+internal fun SChapter.resolveContentChapterNumber(fallbackNumber: Float? = null): Float {
+    val modernNumber = try {
+        number?.toFloatOrNullCompat()
+    } catch (_: NoSuchMethodError) {
+        null
+    }
+    return modernNumber
+        ?: chapter_number.takeIf { it >= 0 }
+        ?: fallbackNumber
+        ?: 0f
+}
+
+/**
  * Convert Mihon SChapter to App ContentChapter.
  */
-fun SChapter.toContentChapter(source: ContentSource, overrideNumber: Float? = null): ContentChapter {
+fun SChapter.toContentChapter(source: ContentSource, fallbackNumber: Float? = null): ContentChapter {
     val chapterId = generateChapterId(url, source.name)
-    val finalNumber = overrideNumber ?: (if (chapter_number >= 0) chapter_number else 0f)
-    
-    android.util.Log.d("MihonDataConverters", "toContentChapter: name='$name' url='$url' -> id=$chapterId number=$finalNumber")
-    
+    val finalNumber = resolveContentChapterNumber(fallbackNumber)
+    val finalVolume = try {
+        volume?.toIntOrNull() ?: 0
+    } catch (_: NoSuchMethodError) {
+        0
+    }
+    val finalScanlator = try {
+        scanlators.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: scanlator
+    } catch (_: NoSuchMethodError) {
+        scanlator
+    }
+
     return ContentChapter(
         id = chapterId,
         title = name.takeIf { it.isNotBlank() },
         number = finalNumber,
-        volume = 0, // Mihon doesn't have volume numbers in SChapter
+        volume = finalVolume,
         url = url,
-        scanlator = scanlator,
+        scanlator = finalScanlator,
         uploadDate = date_upload,
-        branch = scanlator, // Use scanlator as branch for grouping
+        branch = finalScanlator, // Use scanlator as branch for grouping
         source = source,
     )
 }
@@ -190,6 +286,13 @@ fun ContentChapter.toMihonChapter(): SChapter {
         this.chapter_number = this@toMihonChapter.number
         this.date_upload = this@toMihonChapter.uploadDate
         this.scanlator = this@toMihonChapter.scanlator
+        try {
+            this.number = this@toMihonChapter.number.toString()
+            this.volume = this@toMihonChapter.volume.takeIf { it > 0 }?.toString()
+            this.scanlators = this@toMihonChapter.scanlator?.let { listOf(it) } ?: emptyList()
+        } catch (_: NoSuchMethodError) {
+            // Compatibility fallback for older dynamically loaded implementations.
+        }
     }
 }
 
@@ -197,7 +300,7 @@ fun ContentChapter.toMihonChapter(): SChapter {
 
 /**
  * Convert Mihon Page to App's ContentPage.
- * 
+ *
  * NOTE: The chapter parameter is needed to generate unique page IDs.
  * Without it, all chapters would have pages with IDs 0, 1, 2... which causes
  * cache conflicts in the reader.
@@ -210,7 +313,7 @@ fun Page.asContentPage(
     // Generate a unique page ID by combining chapter URL and page index
     // This prevents cache collisions between pages from different chapters
     val pageId = "${chapter.url}|page|$index".hashCode().toLong() and Long.MAX_VALUE
-    
+
     return ContentPage(
         id = pageId,
         url = imageUrl ?: url,
@@ -277,7 +380,7 @@ private fun resolveUrl(baseUrl: String, url: String?): String? {
     if (url.isNullOrBlank()) return null
     if (url.startsWith("http")) return url
     if (url.startsWith("//")) return "https:$url"
-    
+
     if (baseUrl.isNotBlank()) {
         return baseUrl.trimEnd('/') + "/" + url.trimStart('/')
     }

@@ -1,3 +1,5 @@
+// Automatic Cloudflare coordination adapted from Kototoro at e036c5940af6b849c055ab46d73c0ec4896276f7.
+// Upstream project: Kototoro-app/Kototoro, Apache-2.0.
 package io.github.landwarderer.futon.core.exceptions.resolve
 
 import android.Manifest
@@ -46,10 +48,6 @@ import io.github.landwarderer.futon.core.util.ext.mangaSourceExtra
 import io.github.landwarderer.futon.core.util.ext.printStackTraceDebug
 import io.github.landwarderer.futon.core.util.ext.processLifecycleScope
 import io.github.landwarderer.futon.core.util.ext.toBitmapOrNull
-import org.koitharu.kotatsu.parsers.model.MangaSource
-import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
-import org.koitharu.kotatsu.parsers.util.mapToArray
-import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -58,235 +56,246 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.koitharu.kotatsu.parsers.model.MangaSource
+import org.koitharu.kotatsu.parsers.network.CloudFlareHelper
+import org.koitharu.kotatsu.parsers.util.mapToArray
+import org.koitharu.kotatsu.parsers.util.runCatchingCancellable
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class CaptchaHandler @Inject constructor(
-	@LocalizedAppContext private val context: Context,
-	private val databaseProvider: Provider<MangaDatabase>,
-	private val coilProvider: Provider<ImageLoader>,
-	private val webViewExecutor: WebViewExecutor,
+    @LocalizedAppContext private val context: Context,
+    private val databaseProvider: Provider<MangaDatabase>,
+    private val coilProvider: Provider<ImageLoader>,
+    private val webViewExecutor: WebViewExecutor,
+    private val autoResolveCoordinator: CaptchaAutoResolveCoordinator,
 ) : EventListener() {
 
-	private val exceptionMap = MutableScatterMap<MangaSource, CloudFlareProtectedException>()
-	private val mutex = Mutex()
+    private val exceptionMap = MutableScatterMap<MangaSource, CloudFlareProtectedException>()
+    private val mutex = Mutex()
 
-	@CheckResult
-	suspend fun handle(exception: CloudFlareException): Boolean = handleException(exception.source, exception, true)
+    @CheckResult
+    suspend fun handle(exception: CloudFlareException): Boolean = handleException(exception.source, exception, true)
 
-	suspend fun discard(source: MangaSource) {
-		handleException(source, null, true)
-	}
+    suspend fun discard(source: MangaSource) {
+        handleException(source, null, true)
+    }
 
-	override fun onError(request: ImageRequest, result: ErrorResult) {
-		super.onError(request, result)
-		val e = result.throwable
-		if (e is CloudFlareException) {
-			val scope = request.lifecycle?.coroutineScope ?: processLifecycleScope
-			scope.launch {
-				if (
-					handleException(
-						source = e.source,
-						exception = e,
-						notify = request.extras[suppressCaptchaKey] != true,
-					)
-				) {
-					coilProvider.get().enqueue(request) // TODO check if ok
-				}
-			}
-		}
-	}
+    override fun onError(request: ImageRequest, result: ErrorResult) {
+        super.onError(request, result)
+        val e = result.throwable
+        if (e is CloudFlareException) {
+            val scope = request.lifecycle?.coroutineScope ?: processLifecycleScope
+            scope.launch {
+                if (
+                    handleException(
+                        source = e.source,
+                        exception = e,
+                        notify = request.extras[suppressCaptchaKey] != true,
+                    )
+                ) {
+                    coilProvider.get().enqueue(request)
+                }
+            }
+        }
+    }
 
-	private suspend fun handleException(
-		source: MangaSource,
-		exception: CloudFlareException?,
-		notify: Boolean,
-	): Boolean = withContext(Dispatchers.IO) {
-		if (source == UnknownMangaSource) {
-			return@withContext false
-		}
-		if (exception != null && webViewExecutor.tryResolveCaptcha(exception, RESOLVE_TIMEOUT)) {
-			return@withContext true
-		}
-		mutex.withLock {
-			var removedException: CloudFlareProtectedException? = null
-			if (exception is CloudFlareProtectedException) {
-				exceptionMap[source] = exception
-			} else {
-				removedException = exceptionMap.remove(source)
-			}
-			val dao = databaseProvider.get().getSourcesDao()
-			dao.setCfState(source.name, exception?.state ?: CloudFlareHelper.PROTECTION_NOT_DETECTED)
+    private suspend fun handleException(
+        source: MangaSource,
+        exception: CloudFlareException?,
+        notify: Boolean,
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (source == UnknownMangaSource) {
+            return@withContext false
+        }
 
-			if (notify && context.checkNotificationPermission(CHANNEL_ID)) {
-				val exceptions = dao.findAllCaptchaRequired().mapNotNull {
-					it.source.toMangaSourceOrNull()
-				}.filterNot {
-					SourceSettings(context, it).isCaptchaNotificationsDisabled
-				}.mapNotNull {
-					exceptionMap[it]
-				}
-				if (removedException != null) {
-					NotificationManagerCompat.from(context).cancel(TAG, removedException.source.hashCode())
-				}
-				notify(exceptions)
-			}
-		}
-		false
-	}
+        if (exception is CloudFlareProtectedException) {
+            when (autoResolveCoordinator.resolve(exception, RESOLVE_TIMEOUT)) {
+                CaptchaAutoResolveResult.SOLVED -> return@withContext true
+                CaptchaAutoResolveResult.COOLDOWN,
+                CaptchaAutoResolveResult.INTERACTIVE_REQUIRED,
+                CaptchaAutoResolveResult.HARD_BLOCKED,
+                CaptchaAutoResolveResult.TIMED_OUT,
+                CaptchaAutoResolveResult.FAILED -> Unit
+            }
+        } else if (exception != null && webViewExecutor.tryResolveCaptcha(exception, RESOLVE_TIMEOUT)) {
+            return@withContext true
+        }
 
-	@RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
-	private suspend fun notify(exceptions: List<CloudFlareProtectedException>) {
-		val manager = NotificationManagerCompat.from(context)
-		val channel = NotificationChannelCompat.Builder(
-			CHANNEL_ID,
-			NotificationManagerCompat.IMPORTANCE_LOW,
-		)
-			.setName(context.getString(R.string.captcha_required))
-			.setShowBadge(true)
-			.setVibrationEnabled(false)
-			.setSound(null, null)
-			.setLightsEnabled(false)
-			.build()
-		manager.createNotificationChannel(channel)
+        mutex.withLock {
+            var removedException: CloudFlareProtectedException? = null
+            if (exception is CloudFlareProtectedException) {
+                exceptionMap[source] = exception
+            } else {
+                removedException = exceptionMap.remove(source)
+            }
+            val dao = databaseProvider.get().getSourcesDao()
+            dao.setCfState(source.name, exception?.state ?: CloudFlareHelper.PROTECTION_NOT_DETECTED)
 
-		coroutineScope {
-			exceptions.map {
-				async { it to buildNotification(it) }
-			}.awaitAll()
-		}.forEach { (exception, notification) ->
-			manager.notify(TAG, exception.source.hashCode(), notification)
-		}
-		if (exceptions.size > 1) {
-			val groupNotification = NotificationCompat.Builder(context, CHANNEL_ID)
-				.setGroupSummary(true)
-				.setContentTitle(context.getString(R.string.captcha_required))
-				.setPriority(NotificationCompat.PRIORITY_LOW)
-				.setDefaults(0)
-				.setOnlyAlertOnce(true)
-				.setSmallIcon(R.drawable.ic_bot)
-				.setGroup(GROUP_CAPTCHA)
-				.setContentIntent(
-					PendingIntentCompat.getActivities(
-						context, GROUP_NOTIFICATION_ID,
-						exceptions.mapToArray { e ->
-							AppRouter.cloudFlareResolveIntent(context, e)
-						},
-						0, false,
-					),
-				)
-				.setContentText(
-					context.getString(
-						R.string.captcha_required_summary, context.getString(R.string.app_name),
-					),
-				)
-				.setVisibility(
-					if (exceptions.any { it.source.isNsfw() }) {
-						NotificationCompat.VISIBILITY_SECRET
-					} else {
-						NotificationCompat.VISIBILITY_PUBLIC
-					},
-				)
-			manager.notify(TAG, GROUP_NOTIFICATION_ID, groupNotification.build())
-		} else {
-			manager.cancel(TAG, GROUP_NOTIFICATION_ID)
-		}
-	}
+            if (notify && context.checkNotificationPermission(CHANNEL_ID)) {
+                val exceptions = dao.findAllCaptchaRequired().mapNotNull {
+                    it.source.toMangaSourceOrNull()
+                }.filterNot {
+                    SourceSettings(context, it).isCaptchaNotificationsDisabled
+                }.mapNotNull {
+                    exceptionMap[it]
+                }
+                if (removedException != null) {
+                    NotificationManagerCompat.from(context).cancel(TAG, removedException.source.hashCode())
+                }
+                notify(exceptions)
+            }
+        }
+        false
+    }
 
-	private suspend fun buildNotification(exception: CloudFlareProtectedException): Notification {
-		val intent = AppRouter.cloudFlareResolveIntent(context, exception)
-		val discardIntent = Intent(ACTION_DISCARD)
-			.putExtra(AppRouter.KEY_SOURCE, exception.source.name)
-			.setData("source://${exception.source.name}".toUri())
-		val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-			.setContentTitle(context.getString(R.string.captcha_required))
-			.setPriority(NotificationCompat.PRIORITY_LOW)
-			.setDefaults(0)
-			.setSmallIcon(R.drawable.ic_bot)
-			.setGroup(GROUP_CAPTCHA)
-			.setOnlyAlertOnce(true)
-			.setAutoCancel(true)
-			.setDeleteIntent(PendingIntentCompat.getBroadcast(context, 0, discardIntent, 0, false))
-			.setLargeIcon(getFavicon(exception.source))
-			.setVisibility(
-				if (exception.source.isNsfw()) {
-					NotificationCompat.VISIBILITY_SECRET
-				} else {
-					NotificationCompat.VISIBILITY_PUBLIC
-				},
-			)
-			.setContentText(
-				context.getString(
-					R.string.captcha_required_summary,
-					exception.source.getTitle(context),
-				),
-			)
-			.setContentIntent(PendingIntentCompat.getActivity(context, 0, intent, 0, false))
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			val actionIntent = PendingIntentCompat.getActivity(
-				context, SETTINGS_ACTION_CODE,
-				Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
-					.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-					.putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID),
-				0, false,
-			)
-			notification.addAction(
-				R.drawable.ic_settings,
-				context.getString(R.string.notifications_settings),
-				actionIntent,
-			)
-		}
-		return notification.build()
-	}
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+    private suspend fun notify(exceptions: List<CloudFlareProtectedException>) {
+        val manager = NotificationManagerCompat.from(context)
+        val channel = NotificationChannelCompat.Builder(
+            CHANNEL_ID,
+            NotificationManagerCompat.IMPORTANCE_LOW,
+        )
+            .setName(context.getString(R.string.captcha_required))
+            .setShowBadge(true)
+            .setVibrationEnabled(false)
+            .setSound(null, null)
+            .setLightsEnabled(false)
+            .build()
+        manager.createNotificationChannel(channel)
 
-	private fun String.toMangaSourceOrNull() = MangaSource(this).takeUnless { it == UnknownMangaSource }
+        coroutineScope {
+            exceptions.map {
+                async { it to buildNotification(it) }
+            }.awaitAll()
+        }.forEach { (exception, notification) ->
+            manager.notify(TAG, exception.source.hashCode(), notification)
+        }
+        if (exceptions.size > 1) {
+            val groupNotification = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setGroupSummary(true)
+                .setContentTitle(context.getString(R.string.captcha_required))
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setDefaults(0)
+                .setOnlyAlertOnce(true)
+                .setSmallIcon(R.drawable.ic_bot)
+                .setGroup(GROUP_CAPTCHA)
+                .setContentIntent(
+                    PendingIntentCompat.getActivities(
+                        context, GROUP_NOTIFICATION_ID,
+                        exceptions.mapToArray { e -> AppRouter.cloudFlareResolveIntent(context, e) },
+                        0, false,
+                    ),
+                )
+                .setContentText(
+                    context.getString(
+                        R.string.captcha_required_summary, context.getString(R.string.app_name),
+                    ),
+                )
+                .setVisibility(
+                    if (exceptions.any { it.source.isNsfw() }) {
+                        NotificationCompat.VISIBILITY_SECRET
+                    } else {
+                        NotificationCompat.VISIBILITY_PUBLIC
+                    },
+                )
+            manager.notify(TAG, GROUP_NOTIFICATION_ID, groupNotification.build())
+        } else {
+            manager.cancel(TAG, GROUP_NOTIFICATION_ID)
+        }
+    }
 
-	private suspend fun getFavicon(source: MangaSource) = runCatchingCancellable {
-		coilProvider.get().execute(
-			ImageRequest.Builder(context)
-				.data(source.faviconUri())
-				.allowHardware(false)
-				.allowConversionToBitmap(true)
-				.suppressCaptchaErrors()
-				.mangaSourceExtra(source)
-				.size(context.resources.getNotificationIconSize())
-				.scale(Scale.FILL)
-				.build(),
-		).toBitmapOrNull()
-	}.onFailure {
-		it.printStackTraceDebug("CaptchaHandler::getFavicon")
-	}.getOrNull()
+    private suspend fun buildNotification(exception: CloudFlareProtectedException): Notification {
+        val intent = AppRouter.cloudFlareResolveIntent(context, exception)
+        val discardIntent = Intent(ACTION_DISCARD)
+            .putExtra(AppRouter.KEY_SOURCE, exception.source.name)
+            .setData("source://${exception.source.name}".toUri())
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.captcha_required))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setDefaults(0)
+            .setSmallIcon(R.drawable.ic_bot)
+            .setGroup(GROUP_CAPTCHA)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .setDeleteIntent(PendingIntentCompat.getBroadcast(context, 0, discardIntent, 0, false))
+            .setLargeIcon(getFavicon(exception.source))
+            .setVisibility(
+                if (exception.source.isNsfw()) {
+                    NotificationCompat.VISIBILITY_SECRET
+                } else {
+                    NotificationCompat.VISIBILITY_PUBLIC
+                },
+            )
+            .setContentText(
+                context.getString(
+                    R.string.captcha_required_summary,
+                    exception.source.getTitle(context),
+                ),
+            )
+            .setContentIntent(PendingIntentCompat.getActivity(context, 0, intent, 0, false))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val actionIntent = PendingIntentCompat.getActivity(
+                context, SETTINGS_ACTION_CODE,
+                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, CHANNEL_ID),
+                0, false,
+            )
+            notification.addAction(
+                R.drawable.ic_settings,
+                context.getString(R.string.notifications_settings),
+                actionIntent,
+            )
+        }
+        return notification.build()
+    }
 
-	@AndroidEntryPoint
-	class DiscardReceiver : BroadcastReceiver() {
+    private fun String.toMangaSourceOrNull() = MangaSource(this).takeUnless { it == UnknownMangaSource }
 
-		@Inject
-		lateinit var captchaHandler: CaptchaHandler
+    private suspend fun getFavicon(source: MangaSource) = runCatchingCancellable {
+        coilProvider.get().execute(
+            ImageRequest.Builder(context)
+                .data(source.faviconUri())
+                .allowHardware(false)
+                .allowConversionToBitmap(true)
+                .suppressCaptchaErrors()
+                .mangaSourceExtra(source)
+                .size(context.resources.getNotificationIconSize())
+                .scale(Scale.FILL)
+                .build(),
+        ).toBitmapOrNull()
+    }.onFailure {
+        it.printStackTraceDebug("CaptchaHandler::getFavicon")
+    }.getOrNull()
 
-		override fun onReceive(context: Context?, intent: Intent?) {
-			val sourceName = intent?.getStringExtra(AppRouter.KEY_SOURCE) ?: return
-			goAsync {
-				captchaHandler.handleException(MangaSource(sourceName), exception = null, notify = false)
-			}
-		}
-	}
+    @AndroidEntryPoint
+    class DiscardReceiver : BroadcastReceiver() {
+        @Inject
+        lateinit var captchaHandler: CaptchaHandler
 
-	companion object {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val sourceName = intent?.getStringExtra(AppRouter.KEY_SOURCE) ?: return
+            goAsync {
+                captchaHandler.handleException(MangaSource(sourceName), exception = null, notify = false)
+            }
+        }
+    }
 
-		fun ImageRequest.Builder.suppressCaptchaErrors() = apply {
-			extras[suppressCaptchaKey] = true
-		}
+    companion object {
+        fun ImageRequest.Builder.suppressCaptchaErrors() = apply {
+            extras[suppressCaptchaKey] = true
+        }
 
-		private val suppressCaptchaKey = Extras.Key(false)
-
-		private const val CHANNEL_ID = "captcha"
-		private const val TAG = CHANNEL_ID
-		private const val GROUP_CAPTCHA = "io.github.landwarderer.futon.CAPTCHA"
-		private const val GROUP_NOTIFICATION_ID = 34
-		private const val SETTINGS_ACTION_CODE = 3
-		private const val ACTION_DISCARD = "io.github.landwarderer.futon.CAPTCHA_DISCARD"
-		private const val RESOLVE_TIMEOUT = 20_000L
-	}
+        private val suppressCaptchaKey = Extras.Key(false)
+        private const val CHANNEL_ID = "captcha"
+        private const val TAG = CHANNEL_ID
+        private const val GROUP_CAPTCHA = "io.github.landwarderer.futon.CAPTCHA"
+        private const val GROUP_NOTIFICATION_ID = 34
+        private const val SETTINGS_ACTION_CODE = 3
+        private const val ACTION_DISCARD = "io.github.landwarderer.futon.CAPTCHA_DISCARD"
+        private const val RESOLVE_TIMEOUT = 20_000L
+    }
 }

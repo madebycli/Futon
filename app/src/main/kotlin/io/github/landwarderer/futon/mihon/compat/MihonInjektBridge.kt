@@ -6,10 +6,14 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.preference.PreferenceManager
 import eu.kanade.tachiyomi.network.NetworkHelper
+import io.github.landwarderer.futon.core.network.CloudflareHostCooldown
+import io.github.landwarderer.futon.core.network.webview.CloudflareSolveCoordinator
+import io.github.landwarderer.futon.core.network.webview.WebViewClearanceSolver
 import io.github.landwarderer.futon.core.network.webview.WebViewExecutor
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.StringFormat
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.protobuf.ProtoBuf
 import okhttp3.CookieJar
 import okhttp3.OkHttpClient
 import uy.kohesive.injekt.Injekt
@@ -26,46 +30,60 @@ class MihonInjektBridge(
     private val cookieJar: CookieJar,
     private val webViewExecutor: WebViewExecutor? = null,
 ) {
-    
+
     private val application: Application
         get() = context.applicationContext as Application
-    
+
     @Volatile
     private var initialized = false
-    
+
     /**
      * This must be called before loading any Mihon extensions.
-     * 
-     * Thread-safe - can be called multiple times.
+     *
+     * Thread-safe, can be called multiple times.
      */
     @Synchronized
     fun initialize() {
         if (initialized) return
-        
+
         try {
-            val networkHelper = MihonNetworkHelper(httpClient, cookieJar, webViewExecutor)
+            // Extension-owned image/token paths may construct fresh Requests without copying the
+            // source tag. Add the same request-context recovery invariant Kototoro relies on before
+            // handing the client to the Mihon NetworkHelper.
+            val contextualHttpClient = httpClient.newBuilder()
+                .addInterceptor(MihonSourceContextInterceptor())
+                .build()
+
+            // Current Kototoro uses a dedicated fresh off-screen WebView for the MIHON Cloudflare
+            // strategy. Keep this separate from Futon's interactive WebViewExecutor so a normal
+            // extension request never needs to launch BrowserActivity merely to refresh clearance.
+            val clearanceSolver = WebViewClearanceSolver(context.applicationContext, cookieJar)
+            val solveCoordinator = CloudflareSolveCoordinator(CloudflareHostCooldown())
+            val networkHelper = MihonNetworkHelper(
+                baseClient = contextualHttpClient,
+                cookieJar = cookieJar,
+                webViewExecutor = webViewExecutor,
+                clearanceSolver = clearanceSolver,
+                solveCoordinator = solveCoordinator,
+            )
             Log.d(
                 "MihonInjektBridge",
-                "Creating MihonNetworkHelper with webViewExecutorPresent=${webViewExecutor != null}",
+                "Creating MihonNetworkHelper with offscreenCloudflareSolver=true, webViewExecutorPresent=${webViewExecutor != null}",
             )
-            
+
             Injekt.importModule(object : InjektModule {
                 override fun InjektRegistrar.registerInjectables() {
-                    // Application and Context
                     addSingleton(application)
                     addSingletonFactory<Context> { context.applicationContext }
-                    
-                    // Network components
+
                     addSingletonFactory<NetworkHelper> { networkHelper }
-                    addSingletonFactory<OkHttpClient> { httpClient }
+                    addSingletonFactory<OkHttpClient> { contextualHttpClient }
                     addSingletonFactory<CookieJar> { cookieJar }
-                    
-                    // SharedPreferences
+
                     addSingletonFactory<SharedPreferences> {
                         PreferenceManager.getDefaultSharedPreferences(context)
                     }
 
-                    // JSON - explicitly type it to ensure Injekt matches correctly
                     val json = Json {
                         ignoreUnknownKeys = true
                         explicitNulls = false
@@ -73,19 +91,21 @@ class MihonInjektBridge(
                     addSingletonFactory<Json> { json }
                     addSingletonFactory<StringFormat> { json }
                     addSingletonFactory<SerialFormat> { json }
+
+                    // Current extension ecosystems may resolve ProtoBuf directly from Injekt.
+                    // Futon already ships kotlinx-serialization-protobuf, so expose the same host
+                    // service Kototoro provides instead of forcing extensions to construct their own.
+                    addSingletonFactory<ProtoBuf> { ProtoBuf }
                 }
             })
-            
+
             initialized = true
-            Log.d("MIhonInjektBridge", "Injekt initialized with App dependencies")
+            Log.d("MihonInjektBridge", "Injekt initialized with app dependencies")
         } catch (e: Throwable) {
             Log.e("MihonInjektBridge", "CRITICAL: Failed to initialize Injekt bridge", e)
-            // Do not rethrow, so the app can continue to function without Mihon
+            // Keep Futon usable even when the optional extension runtime cannot initialize.
         }
     }
-    
-    /**
-     * Check if Injekt has been initialized.
-     */
+
     fun isInitialized(): Boolean = initialized
 }
